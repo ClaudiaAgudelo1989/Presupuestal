@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard - Ejecución Presupuestal 2026</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="top-bar">
+      <div class="top-bar-left">
+        <h1 class="app-title">📊 Dashboard Presupuestal</h1>
+      </div>
+      <div class="top-bar-right">
+        <button id="toggleDarkMode" class="theme-toggle" type="button" title="Cambiar tema">🌙</button>
+      </div>
+    </header>
+
+    <main class="dashboard-grid">
+      <!-- Navigation -->
+      <section class="panel" style="grid-column: span 12; position: relative;">
+        <div class="logo-sena-container">
+          <img src="../images.png" alt="Logo SENA" class="logo-sena-img">
+        </div>
+        <div class="nav-links">
+          <a href="upload.html" class="nav-btn">📤 Cargar Datos</a>
+          <a href="dashboard.html" class="nav-btn active">📊 Dashboard</a>
+        </div>
+      </section>
+
+      <!-- Key Metrics -->
+      <section class="panel metric-card">
+        <div class="metric-content">
+          <div class="metric-label">Total CDP</div>
+          <div class="metric-value" id="metricCDP">0</div>
+          <div class="metric-subtitle">Certificaciones</div>
+        </div>
+        <div class="metric-chart" style="width: 60px; height: 60px;">
+          <canvas id="chartCDP"></canvas>
+        </div>
+      </section>
+
+      <section class="panel metric-card">
+        <div class="metric-content">
+          <div class="metric-label">Total CRP</div>
+          <div class="metric-value" id="metricCRP">0</div>
+          <div class="metric-subtitle">Compromisos</div>
+        </div>
+        <div class="metric-chart" style="width: 60px; height: 60px;">
+          <canvas id="chartCRP"></canvas>
+        </div>
+      </section>
+
+      <section class="panel metric-card">
+        <div class="metric-content">
+          <div class="metric-label">Total Devengado</div>
+          <div class="metric-value" id="metricDevengado">$0</div>
+          <div class="metric-subtitle">Gasto Total</div>
+        </div>
+        <div class="metric-chart" style="width: 60px; height: 60px;">
+          <canvas id="chartDevengado"></canvas>
+        </div>
+      </section>
+
+      <section class="panel metric-card">
+        <div class="metric-content">
+          <div class="metric-label">Presupuesto</div>
+          <div class="metric-value" id="metricBase">$0</div>
+          <div class="metric-subtitle">Base Total</div>
+        </div>
+        <div class="metric-chart" style="width: 60px; height: 60px;">
+          <canvas id="chartBase"></canvas>
+        </div>
+      </section>
+
+      <!-- Charts Section -->
+      <section class="panel panel-wide">
+        <div class="panel-heading">
+          <div>
+            <p class="panel-kicker">Distribución</p>
+            <h2>Ejecución por Concepto</h2>
+          </div>
+          <select id="chartTypeSelect" class="text-input" style="width: 200px; max-width: 100%;">
+            <option value="pie">Gráfico Circular</option>
+            <option value="bar">Gráfico de Barras</option>
+            <option value="doughnut">Gráfico de Dona</option>
+          </select>
+        </div>
+        <div style="position: relative; height: 300px;">
+          <canvas id="distributionChart"></canvas>
+        </div>
+      </section>
+
+      <!-- Execution Trend -->
+      <section class="panel panel-wide">
+        <div class="panel-heading">
+          <div>
+            <p class="panel-kicker">Tendencia</p>
+            <h2>Ejecución en el Tiempo</h2>
+          </div>
+        </div>
+        <div style="position: relative; height: 300px;">
+          <canvas id="trendChart"></canvas>
+        </div>
+      </section>
+
+      <!-- Execution Summary Table -->
+      <section class="panel panel-wide">
+        <div class="panel-heading">
+          <div>
+            <p class="panel-kicker">Resumen</p>
+            <h2>Detalle de Ejecución</h2>
+          </div>
+          <button id="refreshDashboardBtn" class="secondary-btn" type="button">Actualizar</button>
+        </div>
+        
+        <div class="table-filters">
+          <input id="summarySearchInput" class="text-input" type="text" placeholder="Buscar en tabla..." />
+          <select id="summaryFilterSelect" class="text-input">
+            <option value="">Todos los registros</option>
+            <option value="cdp">Solo CDP</option>
+            <option value="crp">Solo CRP</option>
+            <option value="seguimiento">Solo Seguimiento</option>
+          </select>
+        </div>
+
+        <div class="preview-wrap">
+          <table class="preview-table">
+            <thead id="summaryHead">
+              <tr>
+                <th>Concepto</th>
+                <th>Vigencia</th>
+                <th>Valor Base</th>
+                <th>Valor CDP</th>
+                <th>Valor CRP</th>
+                <th>% Ejecución</th>
+              </tr>
+            </thead>
+            <tbody id="summaryBody">
+              <tr><td colspan="6" class="table-placeholder">Cargando datos...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Data Source Info -->
+      <section class="panel panel-wide" style="background: var(--accent-soft);">
+        <div class="panel-heading">
+          <div>
+            <p class="panel-kicker">Información</p>
+            <h2>Últimas Actualizaciones</h2>
+          </div>
+        </div>
+        <div id="dataSourceInfo" class="helper-text">Conectando con base de datos...</div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p>Servicio Nacional de Aprendizaje - SENA</p>
+    </footer>
+  </div>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>
