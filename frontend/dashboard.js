@@ -104,6 +104,98 @@ function extractNumericValue(value) {
   return 0;
 }
 
+function normalizeToken(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function getValueByAliases(row, aliases) {
+  const keys = Object.keys(row || {});
+  if (keys.length === 0) return null;
+
+  const normalizedKeys = keys.map(key => ({
+    key,
+    token: normalizeToken(key),
+  }));
+
+  for (const alias of aliases) {
+    const aliasToken = normalizeToken(alias);
+    const exact = normalizedKeys.find(item => item.token === aliasToken);
+    if (exact) return row[exact.key];
+
+    const partial = normalizedKeys.find(item => item.token.includes(aliasToken));
+    if (partial) return row[partial.key];
+  }
+
+  return null;
+}
+
+function getDependencyName(row) {
+  const dependency = getValueByAliases(row, [
+    'dependencia de afectacion del gasto',
+    'dependencia de afectacion de gastos',
+    'dependencia descripcion',
+    'dependencia_descripcion',
+    'dependencia',
+  ]);
+
+  const value = String(dependency || '').trim();
+  return value || 'SIN DEPENDENCIA';
+}
+
+function getAmountValue(row) {
+  const amount = getValueByAliases(row, [
+    'valor actual',
+    'valor_actual',
+    'valor',
+    'monto',
+    'cantidad',
+    'apropiacion vigente dep.gsto',
+  ]);
+
+  return extractNumericValue(amount);
+}
+
+function buildDependencyTrendSeries(dashboardData) {
+  const source = dashboardData || state.dashboardData;
+  const allRows = [
+    ...source.cdp,
+    ...source.crp,
+    ...source.seguimiento,
+  ];
+
+  const totalsByDependency = new Map();
+
+  allRows.forEach(row => {
+    const dependency = getDependencyName(row);
+    const amount = getAmountValue(row);
+
+    totalsByDependency.set(
+      dependency,
+      (totalsByDependency.get(dependency) || 0) + amount
+    );
+  });
+
+  const sorted = Array.from(totalsByDependency.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 12);
+
+  if (sorted.length === 0) {
+    return {
+      labels: ['Sin datos'],
+      valuesInMillions: [0],
+    };
+  }
+
+  return {
+    labels: sorted.map(([dependency]) => dependency),
+    valuesInMillions: sorted.map(([, total]) => total / 1000000),
+  };
+}
+
 function updateMetrics() {
   const cdpCount = state.dashboardData.cdp.length;
   const crpCount = state.dashboardData.crp.length;
@@ -142,7 +234,7 @@ function updateCharts() {
   const chartType = elements.chartTypeSelect.value || 'pie';
   
   // Distribution Chart
-  const labels = ['CDP', 'CRP', 'Seguimiento'];
+  const labels = ['Apropiacion', 'Ejecucion', 'Asignacion'];
   const values = [
     state.dashboardData.cdp.length,
     state.dashboardData.crp.length,
@@ -198,13 +290,15 @@ function updateCharts() {
       state.charts.trend.destroy();
     }
 
+    const trendSeries = buildDependencyTrendSeries(state.dashboardData);
+
     state.charts.trend = new Chart(ctxTrend, {
       type: 'line',
       data: {
-        labels: ['CDP', 'CRP', 'Seguimiento'],
+        labels: trendSeries.labels,
         datasets: [{
-          label: 'Cantidad de Registros',
-          data: values,
+          label: 'Valor en millones (COP)',
+          data: trendSeries.valuesInMillions,
           borderColor: 'rgba(0, 107, 79, 1)',
           backgroundColor: 'rgba(0, 107, 79, 0.1)',
           borderWidth: 3,
@@ -226,22 +320,45 @@ function updateCharts() {
               font: { size: 12, weight: '600' },
             },
           },
+          tooltip: {
+            callbacks: {
+              label(context) {
+                const value = Number(context.raw || 0);
+                return ` ${formatNumber(value)} M`;
+              },
+            },
+          },
         },
         scales: {
           y: {
             ticks: {
               color: getComputedStyle(document.documentElement).getPropertyValue('--muted'),
+              callback(value) {
+                return `${formatNumber(value)} M`;
+              },
             },
             grid: {
               color: getComputedStyle(document.documentElement).getPropertyValue('--line'),
+            },
+            title: {
+              display: true,
+              text: 'Millones COP',
+              color: getComputedStyle(document.documentElement).getPropertyValue('--muted'),
             },
           },
           x: {
             ticks: {
               color: getComputedStyle(document.documentElement).getPropertyValue('--muted'),
+              maxRotation: 45,
+              minRotation: 30,
             },
             grid: {
               color: getComputedStyle(document.documentElement).getPropertyValue('--line'),
+            },
+            title: {
+              display: true,
+              text: 'Dependencia de Afectacion del Gasto',
+              color: getComputedStyle(document.documentElement).getPropertyValue('--muted'),
             },
           },
         },

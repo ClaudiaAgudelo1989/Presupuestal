@@ -1,5 +1,28 @@
 # 📊 Sistema de Gestión Presupuestal 2026 - Guía Rápida
 
+## 🖥️ Instalación en otro PC (rápida)
+
+Para dejar el sistema funcionando en un equipo nuevo, sigue la guía:
+
+- `GUIA_INSTALACION_OTRO_PC.md`
+
+También puedes ejecutar directamente:
+
+- `instalar_y_ejecutar.bat`
+
+## 📚 Documentación de Continuidad
+
+Para facilitar el relevo del proyecto y que otra persona pueda mantenerlo sin perder contexto, se creó una carpeta de documentación viva:
+
+- `documentacion_proyecto/00_indice_documentacion.md`
+- `documentacion_proyecto/01_historial_desde_inicio.md`
+- `documentacion_proyecto/02_arquitectura_actual.md`
+- `documentacion_proyecto/03_bitacora_cambios.md`
+- `documentacion_proyecto/04_hoja_ruta_futuro.md`
+- `documentacion_proyecto/05_convencion_versionado_hitos.md`
+
+Actualizar mínimo la bitácora y la hoja de ruta en cada cambio técnico o funcional.
+
 ## ✨ Nuevas Características Implementadas
 
 ### 1. **Dashboard Completo** (`/frontend/dashboard.html`)

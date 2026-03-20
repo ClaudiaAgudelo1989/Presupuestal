@@ -1,0 +1,19 @@
+# Backend API
+fastapi
+uvicorn
+python-dotenv
+python-multipart
+pydantic
+starlette
+
+# Base de datos
+SQLAlchemy
+PyMySQL
+
+# Procesamiento de datos
+pandas
+openpyxl
+
+# Dashboards y visualizacion
+streamlit
+plotly
