@@ -49,6 +49,10 @@ Ese script hace automaticamente:
 - Instala paquetes desde `requirements.txt`
 - Inicia la API en `http://127.0.0.1:8000`
 - Abre la pagina de carga
+- Pregunta si deseas generar consolidado de APROPIACION VIGENTE por centro
+- Si respondes `S`, genera:
+  - `consolidado_apropiacion_vigente.csv`
+  - `consolidado_apropiacion_vigente.xlsx`
 
 ## 6) URLs del sistema
 

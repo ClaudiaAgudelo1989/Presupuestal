@@ -37,8 +37,52 @@ const elements = {
   previewMeta: document.getElementById('previewMeta'),
   previewHead: document.getElementById('previewHead'),
   previewBody: document.getElementById('previewBody'),
+  uploadResult: document.getElementById('uploadResult'),
   responseLog: document.getElementById('responseLog'),
 };
+
+function setUploadResult(message, variant = 'neutral') {
+  if (!elements.uploadResult) {
+    return;
+  }
+
+  elements.uploadResult.classList.remove('hidden', 'ok', 'error', 'neutral');
+  elements.uploadResult.classList.add(variant);
+  elements.uploadResult.textContent = message;
+}
+
+function buildUploadSummary(data) {
+  const exitosas = Number(data?.filas_exitosas ?? data?.filas_cargadas ?? 0);
+  const fallidas = Number(data?.filas_fallidas ?? 0);
+  const preparadas = Number(data?.filas_preparadas_para_insert ?? data?.filas_intentadas ?? exitosas + fallidas);
+
+  const coverage = data?.validacion_integridad?.cobertura_columnas_porcentaje;
+  const coverageText = typeof coverage === 'number' ? `${coverage}%` : 'N/D';
+
+  const mensaje = [
+    `Carga completada en tabla ${data?.tabla || '-'}`,
+    `Filas preparadas: ${preparadas}`,
+    `Registros exitosos: ${exitosas}`,
+    `Registros fallidos: ${fallidas}`,
+    `Cobertura de columnas: ${coverageText}`,
+  ];
+
+  if (data?.validacion_cdp) {
+    const cdp = data.validacion_cdp;
+    mensaje.push(`Columnas CDP detectadas: ${cdp.columnas_totales_excel_detectadas}/${cdp.columnas_totales_excel_esperadas}`);
+    mensaje.push(`CDP requeridas detectadas: ${cdp.encabezados_requeridos_detectados}/${cdp.encabezados_requeridos}`);
+    if (!cdp.encabezados_requeridos_completos) {
+      mensaje.push(`Encabezados CDP faltantes: ${cdp.encabezados_requeridos_faltantes.join(', ')}`);
+    }
+  }
+
+  if ((data?.errores_muestra || []).length) {
+    const first = data.errores_muestra[0];
+    mensaje.push(`Primer error: fila ${first.fila} - ${first.error}`);
+  }
+
+  return mensaje.join(' | ');
+}
 
 function getApiBase() {
   const raw = (elements.apiBase?.value || '').trim();
@@ -69,7 +113,7 @@ function formatTableLabel(tableName) {
   const normalized = raw.toLowerCase();
 
   if (normalized === 'seguimiento_presupuestal' || normalized === 'presupuesto.seguimiento_presupuestal') {
-    return 'eje';
+    return 'seguimiento_presupuestal (EJE)';
   }
 
   return raw.replace(/^presupuesto\./i, '');
@@ -300,9 +344,13 @@ async function handleUploadExcel(event) {
   try {
     const data = await request('/api/excel/upload-to-table', { method: 'POST', body: formData });
     writeLog('Excel cargado', data);
+    const summary = buildUploadSummary(data);
+    setUploadResult(summary, Number(data?.filas_fallidas || 0) > 0 ? 'error' : 'ok');
+    window.alert(summary);
     await loadDatasetViews();
   } catch (error) {
     writeLog('Error cargando Excel', error.message);
+    setUploadResult(`Error cargando Excel: ${error.message}`, 'error');
     window.alert(`Error cargando Excel: ${error.message}`);
   }
 }

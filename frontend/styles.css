@@ -179,6 +179,39 @@ h2 {
   box-shadow: 0 15px 40px rgba(0, 61, 46, 0.15);
 }
 
+.source-switcher-panel {
+  background: linear-gradient(135deg, rgba(0, 107, 79, 0.07), rgba(107, 175, 143, 0.1));
+}
+
+.source-toggle-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.source-toggle-btn {
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
+  color: var(--accent-deep);
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.source-toggle-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 61, 46, 0.15);
+}
+
+.source-toggle-btn.is-active {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: var(--accent);
+}
+
 .panel-kicker {
   margin: 0 0 8px;
   text-transform: uppercase;
@@ -680,6 +713,18 @@ label {
   flex-shrink: 0;
 }
 
+.executive-summary-wrap {
+  margin-top: 10px;
+}
+
+.executive-summary-table tbody td:first-child {
+  color: var(--accent-deep);
+}
+
+.executive-summary-table tbody tr:hover td {
+  background: rgba(0, 107, 79, 0.08);
+}
+
 /* Table Filters */
 .table-filters {
   display: flex;
@@ -692,6 +737,15 @@ label {
 .table-filters > * {
   flex: 1;
   min-width: 200px;
+}
+
+.table-filters #conceptFilterSelect,
+.table-filters #dependencyFilterSelect {
+  min-width: 220px;
+}
+
+#activeDashboardFilters {
+  margin: 0 0 12px;
 }
 
 /* Dashboard specific */
@@ -709,6 +763,113 @@ label {
   background: rgba(0, 61, 46, 0.08);
   border-radius: 8px;
   border-left: 4px solid var(--accent);
+}
+
+.upload-result {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 8px;
+  border-left: 4px solid var(--accent);
+  background: rgba(0, 61, 46, 0.08);
+  color: var(--ink);
+  font-size: 0.92rem;
+}
+
+.upload-result.ok {
+  border-left-color: var(--accent);
+  background: rgba(6, 214, 160, 0.14);
+}
+
+.upload-result.error {
+  border-left-color: var(--alert);
+  background: var(--alert-soft);
+}
+
+/* Accordion Styles */
+.accordion-header {
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 200ms ease;
+}
+
+.accordion-header:hover {
+  background-color: var(--accent-soft);
+  border-radius: 12px;
+  padding-left: 18px;
+  padding-right: 18px;
+  margin-left: -4px;
+  margin-right: -4px;
+}
+
+.accordion-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 200ms ease;
+  color: var(--accent-deep);
+  font-size: 1rem;
+  width: 36px;
+  height: 36px;
+}
+
+.accordion-toggle:hover {
+  background: var(--accent-soft);
+  transform: scale(1.1);
+}
+
+.accordion-icon {
+  display: inline-block;
+  transition: transform 300ms ease;
+}
+
+.accordion-header .accordion-icon {
+  transform: rotate(0deg);
+}
+
+.accordion-header.collapsed .accordion-icon {
+  transform: rotate(-90deg);
+}
+
+.accordion-content {
+  max-height: 1000px;
+  overflow: hidden;
+  transition: all 300ms ease;
+  opacity: 1;
+  animation: slideDown 300ms ease;
+}
+
+.accordion-content.hidden {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  animation: slideUp 300ms ease;
+}
+
+@keyframes slideDown {
+  from {
+    max-height: 0;
+    opacity: 0;
+  }
+  to {
+    max-height: 1000px;
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    max-height: 1000px;
+    opacity: 1;
+  }
+  to {
+    max-height: 0;
+    opacity: 0;
+  }
 }
 
 @media (max-width: 1080px) {
@@ -759,6 +920,11 @@ label {
   .primary-btn,
   .secondary-btn {
     width: 100%;
+  }
+
+  .table-filters #conceptFilterSelect,
+  .table-filters #dependencyFilterSelect {
+    min-width: 100%;
   }
 
   .form-row,

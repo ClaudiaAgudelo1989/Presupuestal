@@ -1,5 +1,29 @@
 use database presupuesto; 
 
+CREATE TABLE `eje` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `Dependencia` VARCHAR(255) NULL,
+    `Tipo` VARCHAR(50) NULL,
+    `Concepto` VARCHAR(255) NULL,
+    `Fuente` VARCHAR(100) NULL,
+    `Situacion` VARCHAR(50) NULL,
+    `Recurso` VARCHAR(100) NULL,
+    `Apropiacion_Vigente` DECIMAL(18,2) NULL,
+    `Total_CDP` DECIMAL(18,2) NULL,
+    `Apropiacion_Disponible` DECIMAL(18,2) NULL,
+    `Total_CDP_Modificacion` DECIMAL(18,2) NULL,
+    `Total_Compromiso` DECIMAL(18,2) NULL,
+    `CDP_Por_Comprometer` DECIMAL(18,2) NULL,
+    `Total_Obligaciones` DECIMAL(18,2) NULL,
+    `Compromiso_Por_Obligar` DECIMAL(18,2) NULL,
+    `Total_Ordenes_Pago` DECIMAL(18,2) NULL,
+    `Obligaciones_Por_Ordenar` DECIMAL(18,2) NULL,
+    `Pagos` DECIMAL(18,2) NULL,
+    `Ordenes_Pago_Por_Pagar` DECIMAL(18,2) NULL,
+    `Total_Reintegros` DECIMAL(18,2) NULL,
+    `Vigencia` INT NULL,
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE `seguimiento_presupuestal` (
     `id` BIGINT NOT NULL AUTO_INCREMENT,

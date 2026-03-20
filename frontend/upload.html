@@ -69,6 +69,8 @@
             <button id="previewExcelBtn" class="secondary-btn" type="button">Previsualizar</button>
             <button class="primary-btn" type="submit">Subir a tabla</button>
           </div>
+
+          <div id="uploadResult" class="upload-result hidden"></div>
         </form>
       </section>
 
@@ -104,7 +106,7 @@
           <div id="datasetTabs" class="dataset-tabs">
             <button class="dataset-tab active" data-table="cdp" type="button">cdp</button>
             <button class="dataset-tab" data-table="crp" type="button">crp</button>
-            <button class="dataset-tab" data-table="seguimiento_presupuestal" type="button">eje</button>
+            <button class="dataset-tab" data-table="seguimiento_presupuestal" type="button">seguimiento_presupuestal (EJE)</button>
           </div>
           <div class="dataset-controls">
             <input id="datasetSearchInput" class="text-input" type="text" placeholder="Buscar en la tabla activa" />
@@ -152,6 +154,6 @@
     </footer>
   </div>
 
-  <script src="upload.js"></script>
+  <script src="upload.js?v=20260320-1"></script>
 </body>
 </html>

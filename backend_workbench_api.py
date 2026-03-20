@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 import os
 import re
 from io import BytesIO
@@ -633,6 +634,85 @@ def build_sqlalchemy_url(payload: ConnectionPayload) -> str:
     )
 
 
+def normalize_mysql_value(value: Any) -> Any:
+    if value is None:
+        return None
+
+    try:
+        if pd.isna(value):
+            return None
+    except Exception:  # noqa: BLE001
+        pass
+
+    if isinstance(value, pd.Timestamp):
+        return value.to_pydatetime()
+
+    if hasattr(value, "item"):
+        try:
+            return value.item()
+        except Exception:  # noqa: BLE001
+            return value
+
+    return value
+
+
+def insert_dataframe_with_row_report(
+    payload: ConnectionPayload,
+    table_name: str,
+    df: pd.DataFrame,
+    sample_errors: int = 20,
+) -> dict[str, Any]:
+    if df.empty:
+        return {
+            "filas_intentadas": 0,
+            "filas_insertadas": 0,
+            "filas_fallidas": 0,
+            "errores_muestra": [],
+        }
+
+    columns = [str(c) for c in df.columns]
+    quoted_columns = ", ".join(f"`{c}`" for c in columns)
+    placeholders = ", ".join(["%s"] * len(columns))
+    insert_sql = f"INSERT INTO `{table_name}` ({quoted_columns}) VALUES ({placeholders})"
+
+    records = df.where(pd.notna(df), None).to_dict(orient="records")
+    attempted = len(records)
+    inserted = 0
+    failed = 0
+    errors: list[dict[str, Any]] = []
+
+    connection = get_connection(payload)
+    try:
+        with connection.cursor() as cursor:
+            for index, record in enumerate(records, start=1):
+                values = tuple(normalize_mysql_value(record.get(col)) for col in columns)
+                try:
+                    cursor.execute(insert_sql, values)
+                    inserted += 1
+                except Exception as exc:  # noqa: BLE001
+                    failed += 1
+                    if len(errors) < sample_errors:
+                        errors.append(
+                            {
+                                "fila": index,
+                                "error": str(exc),
+                            }
+                        )
+        connection.commit()
+    except Exception as exc:  # noqa: BLE001
+        connection.rollback()
+        raise HTTPException(status_code=400, detail=f"Error insertando datos en {table_name}: {exc}") from exc
+    finally:
+        connection.close()
+
+    return {
+        "filas_intentadas": attempted,
+        "filas_insertadas": inserted,
+        "filas_fallidas": failed,
+        "errores_muestra": errors,
+    }
+
+
 def get_form_connection_payload(
     host: str,
     port: int,
@@ -665,11 +745,11 @@ def read_excel_sheet_raw(content_bytes: bytes, sheet_name: str) -> pd.DataFrame:
 
 def build_seguimiento_from_eje_table(eje_df: pd.DataFrame) -> pd.DataFrame:
     result = pd.DataFrame()
-    result["Numero_Documento"] = None
-    result["Fecha_Registro"] = None
-    result["Fecha_Creacion"] = None
+    result["Numero_Documento"] = ""
+    result["Fecha_Registro"] = ""
+    result["Fecha_Creacion"] = ""
     result["Tipo_de_CDP"] = eje_df.get("TIPO")
-    result["Estado"] = None
+    result["Estado"] = ""
     result["Dependencia"] = eje_df.get("DEPENDENCIA DE AFECTACION DE GASTOS")
     result["Dependencia_Descripcion"] = eje_df.get("DEPENDENCIA DE AFECTACION DE GASTOS")
     result["Rubro"] = eje_df.get("CONCEPTO")
@@ -682,9 +762,113 @@ def build_seguimiento_from_eje_table(eje_df: pd.DataFrame) -> pd.DataFrame:
     result["Valor_Actual"] = eje_df.get("TOTAL CDP DEP.GSTOS")
     result["Saldo_por_Comprometer"] = eje_df.get("CDP POR COMPROMETER DEP.GSTOS")
     result["Objeto"] = eje_df.get("CONCEPTO")
-    result["Solicitud_CDP"] = None
+    result["Solicitud_CDP"] = ""
 
+    text_columns = [
+        "Numero_Documento",
+        "Fecha_Registro",
+        "Fecha_Creacion",
+        "Tipo_de_CDP",
+        "Estado",
+        "Dependencia",
+        "Dependencia_Descripcion",
+        "Rubro",
+        "Descripcion",
+        "Fuente",
+        "Recurso",
+        "Sit",
+        "Objeto",
+        "Solicitud_CDP",
+    ]
+    numeric_columns = [
+        "Valor_Inicial",
+        "Valor_Operaciones",
+        "Valor_Actual",
+        "Saldo_por_Comprometer",
+    ]
+
+    for col in text_columns:
+        if col in result.columns:
+            result[col] = result[col].where(pd.notna(result[col]), "").astype(str)
+
+    for col in numeric_columns:
+        if col in result.columns:
+            result[col] = pd.to_numeric(result[col], errors="coerce").fillna(0)
+
+    # Evita doble conteo de filas jerarquicas del Excel:
+    # conserva una sola fila por centro/recurso/valor y prioriza la descripcion mas especifica.
+    if not result.empty:
+        result["_desc_len"] = result["Descripcion"].astype(str).str.len()
+        result = result.sort_values("_desc_len")
+        result = result.drop_duplicates(
+            subset=[
+                "Dependencia_Descripcion",
+                "Recurso",
+                "Valor_Inicial",
+                "Valor_Actual",
+            ],
+            keep="last",
+        )
+        result = result.drop(columns=["_desc_len"])
+        result = result.reset_index(drop=True)
+
+    return result
+
+
+def build_eje_dataframe_for_db(eje_df: pd.DataFrame) -> pd.DataFrame:
+    """Construye un DataFrame para la tabla 'eje' en la base de datos a partir de los datos procesados de eje."""
+    def get_col_by_alias(df, aliases):
+        """Busca una columna por múltiples alias, case-insensitive."""
+        if not aliases:
+            return None
+        cols_lower = {col.lower(): col for col in df.columns}
+        for alias in aliases:
+            alias_lower = alias.lower()
+            if alias_lower in cols_lower:
+                return df[cols_lower[alias_lower]]
+        return None
+
+    result = pd.DataFrame()
+    result["Dependencia"] = get_col_by_alias(eje_df, ["DEPENDENCIA DE AFECTACION DE GASTOS", "Dependencia"])
+    result["Tipo"] = get_col_by_alias(eje_df, ["TIPO", "Tipo"])
+    result["Concepto"] = get_col_by_alias(eje_df, ["CONCEPTO", "Concepto"])
+    result["Fuente"] = get_col_by_alias(eje_df, ["FUENTE", "Fuente"])
+    result["Situacion"] = get_col_by_alias(eje_df, ["SITUACION", "Situacion"])
+    result["Recurso"] = get_col_by_alias(eje_df, ["RECURSO", "Recurso", "REC."])
+    result["Apropiacion_Vigente"] = get_col_by_alias(eje_df, ["APROPIACION VIGENTE DEP.GSTO", "Apropiacion_Vigente"])
+    result["Total_CDP"] = get_col_by_alias(eje_df, ["TOTAL CDP DEP.GSTOS", "Total_CDP"])
+    result["Apropiacion_Disponible"] = get_col_by_alias(eje_df, ["APROPIACION DISPONIBLE DEP.GSTO", "Apropiacion_Disponible"])
+    result["Total_CDP_Modificacion"] = get_col_by_alias(eje_df, ["TOTAL CDP MODIFICACION DEP.GSTOS", "Total_CDP_Modificacion"])
+    result["Total_Compromiso"] = get_col_by_alias(eje_df, ["TOTAL COMPROMISO DEP.GSTOS", "Total_Compromiso"])
+    result["CDP_Por_Comprometer"] = get_col_by_alias(eje_df, ["CDP POR COMPROMETER DEP.GSTOS", "CDP_Por_Comprometer"])
+    result["Total_Obligaciones"] = get_col_by_alias(eje_df, ["TOTAL OBLIGACIONES DEP.GSTOS", "Total_Obligaciones"])
+    result["Compromiso_Por_Obligar"] = get_col_by_alias(eje_df, ["COMPROMISO POR OBLIGAR DEP.GSTOS", "Compromiso_Por_Obligar"])
+    result["Total_Ordenes_Pago"] = get_col_by_alias(eje_df, ["TOTAL ORDENES DE PAGO DEP.GSTOS", "Total_Ordenes_Pago"])
+    result["Obligaciones_Por_Ordenar"] = get_col_by_alias(eje_df, ["OBLIGACIONES POR ORDENAR DEP.GSTOS", "Obligaciones_Por_Ordenar"])
+    result["Pagos"] = get_col_by_alias(eje_df, ["PAGOS DEP.GSTOS", "Pagos"])
+    result["Ordenes_Pago_Por_Pagar"] = get_col_by_alias(eje_df, ["ORDENES DE PAGO POR PAGAR DEP.GSTOS", "Ordenes_Pago_Por_Pagar"])
+    result["Total_Reintegros"] = get_col_by_alias(eje_df, ["TOTAL REINTEGROS DEP.GSTOS CDP", "Total_Reintegros"])
+    
+    # Inferir vigencia del año más común en los datos
+    vigencia = infer_reference_year(eje_df)
+    result["Vigencia"] = vigencia
+    
+    # Si todas las columnas son NULL, intenta mapeo fallback más flexible
+    if result.isna().all().all():
+        # Fallback: intenta mapear cualquier columna que contenga palabras clave
+        for col_result in result.columns:
+            col_lower = col_result.lower()
+            for col_source in eje_df.columns:
+                col_source_lower = col_source.lower()
+                # Busca coincidencias parciales
+                if col_lower.replace('_', '') in col_source_lower.replace(' ', '').replace('.', '').replace('gsto', '').replace('gstos', ''):
+                    if result[col_result].isna().all():
+                        result[col_result] = eje_df[col_source]
+                    break
+    
     return result.where(pd.notna(result), None)
+
+
 
 
 def _extract_metadata_value(df_raw: pd.DataFrame, label_hint: str, search_rows: int) -> str | None:
@@ -838,6 +1022,88 @@ def parse_decimal_or_none(value: Any) -> float | None:
         return None
 
     return float(cleaned)
+
+
+def _extract_year_from_value(value: Any) -> int | None:
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return None
+
+    if isinstance(value, pd.Timestamp):
+        year = int(value.year)
+        return year if 2000 <= year <= 2100 else None
+
+    if isinstance(value, (int, float)) and not pd.isna(value):
+        numeric = int(value)
+        if 2000 <= numeric <= 2100:
+            return numeric
+
+    text = str(value).strip()
+    if not text:
+        return None
+
+    match = re.search(r"\b(20\d{2})\b", text)
+    if match:
+        year = int(match.group(1))
+        return year if 2000 <= year <= 2100 else None
+
+    parsed = pd.to_datetime(text, errors="coerce", dayfirst=True)
+    if pd.notna(parsed):
+        year = int(parsed.year)
+        return year if 2000 <= year <= 2100 else None
+
+    return None
+
+
+def infer_reference_year(df: pd.DataFrame) -> int:
+    candidates: list[int] = []
+
+    preferred_cols = [
+        c
+        for c in df.columns
+        if normalize_header(c) in {"vigencia", "fechaderegistro", "fechadecreacion", "fechamovimientos"}
+    ]
+
+    cols_to_scan = preferred_cols if preferred_cols else list(df.columns)
+    for col in cols_to_scan:
+        for value in df[col].head(500).tolist():
+            year = _extract_year_from_value(value)
+            if year is not None:
+                candidates.append(year)
+
+    if not candidates:
+        return int(pd.Timestamp.now().year)
+
+    return Counter(candidates).most_common(1)[0][0]
+
+
+def ensure_non_null_date_fields(
+    df: pd.DataFrame,
+    date_columns: list[str],
+    stringify: bool = False,
+) -> pd.DataFrame:
+    result = df.copy()
+    existing = [col for col in date_columns if col in result.columns]
+    if not existing:
+        return result
+
+    fallback_date = pd.Timestamp(infer_reference_year(result), 1, 1)
+    parsed: dict[str, pd.Series] = {
+        col: pd.to_datetime(result[col], errors="coerce", dayfirst=True) for col in existing
+    }
+
+    if len(existing) >= 2:
+        first, second = existing[0], existing[1]
+        parsed[first] = parsed[first].fillna(parsed[second])
+        parsed[second] = parsed[second].fillna(parsed[first])
+
+    for col in existing:
+        series = parsed[col].fillna(fallback_date)
+        if stringify:
+            result[col] = series.dt.strftime("%Y-%m-%d")
+        else:
+            result[col] = series
+
+    return result
 
 
 def load_default_datasets_dataframes() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
@@ -1330,12 +1596,19 @@ async def upload_and_run_sql(
 def run_query(payload: QueryPayload) -> dict[str, Any]:
     connection = get_connection(payload)
     try:
+        query_text = (payload.query or "").strip()
+        is_select_like = query_text[:6].upper() == "SELECT"
         with connection.cursor() as cursor:
             cursor.execute(payload.query)
-            rows = cursor.fetchall()
+            if is_select_like:
+                rows = cursor.fetchall()
+            else:
+                connection.commit()
+                rows = []
         return {
             "ok": True,
             "filas": len(rows),
+            "filas_afectadas": 0 if is_select_like else int(cursor.rowcount or 0),
             "data": rows,
         }
     except Exception as exc:  # noqa: BLE001
@@ -1694,6 +1967,13 @@ async def upload_excel_to_existing_table(
             elif table_key == "cdp":
                 parsed_df = build_cdp_dataframe(df_raw)
                 prepared_df = build_dataframe_for_existing_table(parsed_df, target_columns)
+            elif table_key == "eje":
+                from transformar_eje import build_eje_table
+
+                raw_sheet_df = read_excel_sheet_raw(content_bytes, candidate_sheet)
+                eje_df = build_eje_table(raw_sheet_df)
+                parsed_df = build_eje_dataframe_for_db(eje_df)
+                prepared_df = build_dataframe_for_existing_table(parsed_df, target_columns)
             elif table_key == "seguimiento_presupuestal":
                 try:
                     prepared_df = build_seguimiento_merged_dataframe(
@@ -1764,13 +2044,49 @@ async def upload_excel_to_existing_table(
             },
         )
 
-    df = coerce_dataframe_to_table_types(df, target_types, max_lengths)
+    raw_sheet_df = sheets[selected_sheet]
+    raw_rows_total = int(len(raw_sheet_df))
+    raw_rows_non_empty = int(raw_sheet_df.dropna(how="all").shape[0])
+    raw_columns_total = int(len(raw_sheet_df.columns))
 
-    engine = create_engine(build_sqlalchemy_url(payload), pool_pre_ping=True)
-    try:
-        df.to_sql(name=safe_table_name, con=engine, if_exists="append", index=False, chunksize=1000)
-    except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=400, detail=f"Error cargando Excel en la tabla {safe_table_name}: {exc}") from exc
+    df = coerce_dataframe_to_table_types(df, target_types, max_lengths)
+    if table_key == "cdp":
+        df = ensure_non_null_date_fields(df, ["Fecha de Registro", "Fecha de Creacion"])
+    elif table_key == "crp":
+        df = ensure_non_null_date_fields(df, ["Fecha de Registro", "Fecha de Creacion"])
+    elif table_key == "seguimiento_presupuestal":
+        df = ensure_non_null_date_fields(df, ["Fecha_Registro", "Fecha_Creacion"], stringify=True)
+    prepared_rows = int(len(df))
+
+    mapping_info = {
+        "encabezados_excel_detectados": [str(c) for c in sheets[selected_sheet].columns],
+        "columnas_coincidentes": df.attrs.get("matched_columns", []),
+        "columnas_faltantes_rellenadas_null": df.attrs.get("missing_columns", []),
+        "columnas_excel_ignoradas": df.attrs.get("extra_columns", []),
+    }
+
+    insertion_report = insert_dataframe_with_row_report(payload, safe_table_name, df)
+
+    matched_count = len(mapping_info["columnas_coincidentes"])
+    expected_count = len(target_columns)
+    coverage_percent = round((matched_count / expected_count) * 100, 2) if expected_count else 0.0
+
+    cdp_validation: dict[str, Any] | None = None
+    if table_key == "cdp":
+        expected_cdp_excel_columns = 156
+        expected_cdp_norm = set(normalize_columns(CDP_REQUIRED_HEADERS))
+        matched_cdp_norm = set(mapping_info["columnas_coincidentes"])
+        missing_cdp_norm = sorted(expected_cdp_norm - matched_cdp_norm)
+
+        cdp_validation = {
+            "columnas_totales_excel_esperadas": expected_cdp_excel_columns,
+            "columnas_totales_excel_detectadas": raw_columns_total,
+            "columnas_totales_excel_completas": raw_columns_total == expected_cdp_excel_columns,
+            "encabezados_requeridos": len(CDP_REQUIRED_HEADERS),
+            "encabezados_requeridos_detectados": len(expected_cdp_norm.intersection(matched_cdp_norm)),
+            "encabezados_requeridos_faltantes": missing_cdp_norm,
+            "encabezados_requeridos_completos": len(missing_cdp_norm) == 0,
+        }
 
     return {
         "ok": True,
@@ -1778,14 +2094,26 @@ async def upload_excel_to_existing_table(
         "hoja": selected_sheet,
         "database": database,
         "tabla": safe_table_name,
-        "filas_cargadas": int(len(df)),
+        "filas_excel_totales_hoja": raw_rows_total,
+        "filas_excel_no_vacias": raw_rows_non_empty,
+        "filas_preparadas_para_insert": prepared_rows,
+        "filas_exitosas": insertion_report["filas_insertadas"],
+        "filas_fallidas": insertion_report["filas_fallidas"],
+        "filas_intentadas": insertion_report["filas_intentadas"],
+        "filas_descartadas_durante_preparacion": max(0, raw_rows_non_empty - prepared_rows),
+        "filas_cargadas": insertion_report["filas_insertadas"],
         "columnas": target_columns,
-        "mapeo": {
-            "encabezados_excel_detectados": [str(c) for c in sheets[selected_sheet].columns],
-            "columnas_coincidentes": df.attrs.get("matched_columns", []),
-            "columnas_faltantes_rellenadas_null": df.attrs.get("missing_columns", []),
-            "columnas_excel_ignoradas": df.attrs.get("extra_columns", []),
+        "mapeo": mapping_info,
+        "validacion_integridad": {
+            "columnas_excel_totales_hoja": raw_columns_total,
+            "columnas_tabla_objetivo": expected_count,
+            "columnas_coincidentes": matched_count,
+            "cobertura_columnas_porcentaje": coverage_percent,
+            "cruce_columnas_completo": matched_count == expected_count,
+            "registro_completo": insertion_report["filas_fallidas"] == 0,
         },
+        "validacion_cdp": cdp_validation,
+        "errores_muestra": insertion_report["errores_muestra"],
     }
 
 
@@ -2026,8 +2354,20 @@ async def truncate_and_load_table(
         raise HTTPException(status_code=400, detail="La hoja seleccionada no tiene datos.")
 
     payload = get_form_connection_payload(host, port, user, password, database)
-    target_columns = get_insertable_columns(payload, safe_table_name)
+    insertable = get_insertable_columns_with_types(payload, safe_table_name)
+    max_lengths = get_insertable_column_max_lengths(payload, safe_table_name)
+    target_columns = [name for name, _ in insertable]
+    target_types = {name: data_type for name, data_type in insertable}
     df = build_dataframe_for_existing_table(df, target_columns)
+    df = coerce_dataframe_to_table_types(df, target_types, max_lengths)
+
+    table_key = safe_table_name.lower()
+    if table_key == "cdp":
+        df = ensure_non_null_date_fields(df, ["Fecha de Registro", "Fecha de Creacion"])
+    elif table_key == "crp":
+        df = ensure_non_null_date_fields(df, ["Fecha de Registro", "Fecha de Creacion"])
+    elif table_key == "seguimiento_presupuestal":
+        df = ensure_non_null_date_fields(df, ["Fecha_Registro", "Fecha_Creacion"], stringify=True)
 
     engine = create_engine(build_sqlalchemy_url(payload), pool_pre_ping=True)
     try:
