@@ -1,3 +1,45 @@
+// --- SUBIDA AVANZADA EJE ---
+const uploadEjeAvanzadoForm = document.getElementById('uploadEjeAvanzadoForm');
+const excelEjeAvanzadoFile = document.getElementById('excelEjeAvanzadoFile');
+const uploadEjeAvanzadoResult = document.getElementById('uploadEjeAvanzadoResult');
+
+if (uploadEjeAvanzadoForm) {
+  uploadEjeAvanzadoForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!excelEjeAvanzadoFile.files.length) {
+      uploadEjeAvanzadoResult.classList.remove('ok', 'error', 'hidden');
+      uploadEjeAvanzadoResult.classList.add('error');
+      uploadEjeAvanzadoResult.textContent = 'Selecciona un archivo .xlsx';
+      return;
+    }
+    const formData = new FormData();
+    formData.append('file', excelEjeAvanzadoFile.files[0]);
+    formData.append('table_name', 'eje');
+    uploadEjeAvanzadoResult.classList.remove('ok', 'error', 'hidden');
+    uploadEjeAvanzadoResult.classList.add('neutral');
+    uploadEjeAvanzadoResult.textContent = 'Subiendo archivo...';
+    try {
+      const response = await fetch(`${getApiBase()}/api/excel/upload-to-table`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
+      if (response.ok) {
+        uploadEjeAvanzadoResult.classList.remove('neutral', 'error', 'hidden');
+        uploadEjeAvanzadoResult.classList.add('ok');
+        uploadEjeAvanzadoResult.textContent = data.message || 'Archivo subido correctamente.';
+      } else {
+        uploadEjeAvanzadoResult.classList.remove('neutral', 'ok', 'hidden');
+        uploadEjeAvanzadoResult.classList.add('error');
+        uploadEjeAvanzadoResult.textContent = data.detail || 'Error al subir el archivo.';
+      }
+    } catch (err) {
+      uploadEjeAvanzadoResult.classList.remove('neutral', 'ok', 'hidden');
+      uploadEjeAvanzadoResult.classList.add('error');
+      uploadEjeAvanzadoResult.textContent = err.message || 'Error de red al subir el archivo.';
+    }
+  });
+}
 const state = {
   tables: [],
   datasetTables: ['cdp', 'crp', 'seguimiento_presupuestal'],
@@ -102,7 +144,7 @@ function writeLog(title, payload) {
   if (elements.responseLog) {
     elements.responseLog.textContent = `[${timestamp}] ${title}\n${serialized}`;
   } else {
-    // Cuando el panel de log esta oculto para cliente, mantenemos trazas en consola.
+    // Cuando el panel de log está oculto para cliente, mantenemos trazas en consola.
     // eslint-disable-next-line no-console
     console.log(`[${timestamp}] ${title}`, payload);
   }
@@ -180,7 +222,7 @@ function renderDatasetPreview(tableName, payload) {
   const rows = payload?.rows || [];
   const columns = payload?.columns || [];
   elements.datasetActiveName.textContent = formatTableLabel(tableName);
-  elements.datasetPageInfo.textContent = `Pagina ${payload?.page ?? 1} de ${payload?.total_pages ?? 1}`;
+  elements.datasetPageInfo.textContent = `Página ${payload?.page ?? 1} de ${payload?.total_pages ?? 1}`;
   elements.datasetPrevBtn.disabled = (payload?.page ?? 1) <= 1;
   elements.datasetNextBtn.disabled = (payload?.page ?? 1) >= (payload?.total_pages ?? 1);
 
@@ -244,10 +286,10 @@ async function checkHealth() {
   try {
     setHealthStatus('Verificando...', 'neutral');
     const data = await request('/health');
-    setHealthStatus(`Conexion activa: ${data.status}`, 'ok');
+    setHealthStatus(`Conexión activa: ${data.status}`, 'ok');
     writeLog('Health check', data);
   } catch (error) {
-    setHealthStatus('Sin conexion', 'error');
+    setHealthStatus('Sin conexión', 'error');
     writeLog('Health check', error.message);
   }
 }

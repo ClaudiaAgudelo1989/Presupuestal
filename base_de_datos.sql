@@ -1,52 +1,8 @@
 use database presupuesto; 
 
-CREATE TABLE `eje` (
-    `id` BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    `Dependencia` VARCHAR(255) NULL,
-    `Tipo` VARCHAR(50) NULL,
-    `Concepto` VARCHAR(255) NULL,
-    `Fuente` VARCHAR(100) NULL,
-    `Situacion` VARCHAR(50) NULL,
-    `Recurso` VARCHAR(100) NULL,
-    `Apropiacion_Vigente` DECIMAL(18,2) NULL,
-    `Total_CDP` DECIMAL(18,2) NULL,
-    `Apropiacion_Disponible` DECIMAL(18,2) NULL,
-    `Total_CDP_Modificacion` DECIMAL(18,2) NULL,
-    `Total_Compromiso` DECIMAL(18,2) NULL,
-    `CDP_Por_Comprometer` DECIMAL(18,2) NULL,
-    `Total_Obligaciones` DECIMAL(18,2) NULL,
-    `Compromiso_Por_Obligar` DECIMAL(18,2) NULL,
-    `Total_Ordenes_Pago` DECIMAL(18,2) NULL,
-    `Obligaciones_Por_Ordenar` DECIMAL(18,2) NULL,
-    `Pagos` DECIMAL(18,2) NULL,
-    `Ordenes_Pago_Por_Pagar` DECIMAL(18,2) NULL,
-    `Total_Reintegros` DECIMAL(18,2) NULL,
-    `Vigencia` INT NULL,
-    PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE `seguimiento_presupuestal` (
-    `id` BIGINT NOT NULL AUTO_INCREMENT,
-    `Numero_Documento` VARCHAR(50) NULL, -- Cambiado a VARCHAR para evitar problemas con ceros a la izquierda
-    `Fecha_Registro` VARCHAR(100) NULL,
-    `Fecha_Creacion` VARCHAR(100) NULL,
-    `Tipo_de_CDP` VARCHAR(100) NULL,
-    `Estado` VARCHAR(100) NULL,
-    `Dependencia` VARCHAR(50) NULL,      -- Cambiado a VARCHAR
-    `Dependencia_Descripcion` VARCHAR(255) NULL,
-    `Rubro` VARCHAR(100) NULL,
-    `Descripcion` VARCHAR(255) NULL,
-    `Fuente` VARCHAR(100) NULL,
-    `Recurso` VARCHAR(100) NULL,
-    `Sit` VARCHAR(100) NULL,
-    `Valor_Inicial` DECIMAL(18,2) NULL,
-    `Valor_Operaciones` DECIMAL(18,2) NULL,
-    `Valor_Actual` DECIMAL(18,2) NULL,
-    `Saldo_por_Comprometer` DECIMAL(18,2) NULL,
-    `Objeto` TEXT NULL,                  -- Cambiado a TEXT por si el objeto es muy largo
-    `Solicitud_CDP` VARCHAR(50) NULL,
-    PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
 
 CREATE TABLE `CRP` (
     `id` BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -104,4 +60,34 @@ CREATE TABLE `CDP` (
     `Solicitud CDP` VARCHAR(100) NULL
 );
 
-
+CREATE TABLE `eje` (
+   `id` int NOT NULL AUTO_INCREMENT,
+   `tipo` varchar(10) DEFAULT NULL,
+   `cta` varchar(10) DEFAULT NULL,
+   `subc` varchar(10) DEFAULT NULL,
+   `objg` varchar(10) DEFAULT NULL,
+   `ord` varchar(10) DEFAULT NULL,
+   `sord` varchar(10) DEFAULT NULL,
+   `item` varchar(10) DEFAULT NULL,
+   `sitem` varchar(10) DEFAULT NULL,
+   `concepto` varchar(255) DEFAULT NULL,
+   `fuente` varchar(100) DEFAULT NULL,
+   `situacion` varchar(50) DEFAULT NULL,
+   `rec` varchar(10) DEFAULT NULL,
+   `recurso` varchar(100) DEFAULT NULL,
+   `apropiacion_vigente_dep_gsto` decimal(20,2) DEFAULT NULL,
+   `is_bold_ap` TINYINT(1) DEFAULT 0, -- 1=negrita, 0=no
+   `total_cdp_dep_gstos` decimal(20,2) DEFAULT NULL,
+   `apropiacion_disponible_dep_gsto` decimal(20,2) DEFAULT NULL,
+   `total_cdp_modificacion_dep_gstos` decimal(20,2) DEFAULT NULL,
+   `total_compromiso_dep_gstos` decimal(20,2) DEFAULT NULL,
+   `cdp_por_comprometer_dep_gstos` decimal(20,2) DEFAULT NULL,
+   `total_obligaciones_dep_gstos` decimal(20,2) DEFAULT NULL,
+   `compromiso_por_obligar_dep_gstos` decimal(20,2) DEFAULT NULL,
+   `total_ordenes_pago_dep_gstos` decimal(20,2) DEFAULT NULL,
+   `obligaciones_por_ordenar_dep_gstos` decimal(20,2) DEFAULT NULL,
+   `pagos_dep_gstos` decimal(20,2) DEFAULT NULL,
+   `ordenes_pago_por_pagar_dep_gstos` decimal(20,2) DEFAULT NULL,
+   `total_reintegros_dep_gstos` decimal(20,2) DEFAULT NULL,
+   PRIMARY KEY (`id`)
+ ) ENGINE=InnoDB AUTO_INCREMENT=245 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci

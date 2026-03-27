@@ -1,5 +1,142 @@
-from __future__ import annotations
+import os
+import re
+import tempfile
+from collections import Counter
+from io import BytesIO
+from pathlib import Path
+from typing import Any
+import unicodedata
 
+import openpyxl
+import pandas as pd
+import pymysql
+from dotenv import load_dotenv
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, RedirectResponse
+from pydantic import BaseModel
+from pymysql.cursors import DictCursor
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine.url import make_url
+from starlette.staticfiles import StaticFiles
+
+# Inicialización de entorno y app
+load_dotenv()
+
+def get_default_connection_values() -> dict[str, Any]:
+    database_url = os.getenv("DATABASE_URL", "").strip()
+    if database_url:
+        url = make_url(database_url)
+        return {
+            "host": url.host or "127.0.0.1",
+            "port": int(url.port or 3306),
+            "user": url.username or "root",
+            "password": url.password or "",
+            "database": url.database,
+        }
+    return {
+        "host": os.getenv("MYSQL_HOST", "127.0.0.1"),
+        "port": int(os.getenv("MYSQL_PORT", "3306")),
+        "user": os.getenv("MYSQL_USER", "root"),
+        "password": os.getenv("MYSQL_PASSWORD", ""),
+        "database": os.getenv("MYSQL_DATABASE", "presupuesto"),
+    }
+
+DEFAULT_CONNECTION = get_default_connection_values()
+
+def build_sqlalchemy_url(conn: dict[str, Any]) -> str:
+    return f"mysql+pymysql://{conn['user']}:{conn['password']}@{conn['host']}:{conn['port']}/{conn['database']}"
+
+engine = create_engine(build_sqlalchemy_url(DEFAULT_CONNECTION), pool_pre_ping=True)
+
+BASE_DIR = Path(__file__).resolve().parent
+FRONTEND_DIR = BASE_DIR / "frontend"
+SQL_SCRIPTS = {
+    "base_datos": BASE_DIR / "base_de_datos.sql",
+    "base_crp": BASE_DIR / "base_crp.sql",
+    "base_cdp": BASE_DIR / "base_cdp.sql",
+}
+
+app = FastAPI(
+    title="API Carga SQL Workbench",
+    description="Backend y endpoints para cargar scripts .sql en MySQL/Workbench.",
+    version="1.0.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+if FRONTEND_DIR.exists():
+    app.mount("/frontend", StaticFiles(directory=FRONTEND_DIR), name="frontend")
+
+# === ENDPOINTS PARA SUBIDA Y SUMA DE EXCEL EJE (FUSIÓN) ===
+@app.post("/subir-excel-eje/")
+def subir_excel_eje(file: UploadFile = File(...)):
+    if not file.filename.endswith('.xlsx'):
+        raise HTTPException(status_code=400, detail="Solo se permiten archivos .xlsx")
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
+        tmp.write(file.file.read())
+        temp_path = tmp.name
+    wb = openpyxl.load_workbook(temp_path)
+    ws = wb.active
+
+    encabezado = "APROPIACION VIGENTE DEP.GSTO."
+    encabezado_normalizado = encabezado.replace('\n', ' ').replace('\r', ' ').replace('  ', ' ').strip().upper()
+    filas = list(ws.iter_rows())
+    indices_encabezado = []
+    col_ap = None
+    for i, row in enumerate(filas):
+        for idx, cell in enumerate(row):
+            cell_value = str(cell.value).replace('\n', ' ').replace('\r', ' ').replace('  ', ' ').strip().upper()
+            if encabezado_normalizado == cell_value:
+                indices_encabezado.append((i, idx))
+    if not indices_encabezado:
+        os.remove(temp_path)
+        raise HTTPException(status_code=400, detail="No se encontró la columna APROPIACION")
+    count = 0
+    # Usar engine global ya configurado
+    with engine.begin() as conn:
+        for idx_e, (fila_enc, col_ap) in enumerate(indices_encabezado):
+            fila = fila_enc + 1
+            while fila < len(filas):
+                cell = filas[fila][col_ap]
+                cell_value = str(cell.value).replace('\n', ' ').replace('\r', ' ').replace('  ', ' ').strip().upper()
+                if cell_value == encabezado_normalizado:
+                    break
+                if cell.value is None:
+                    break
+                if cell.font.bold:
+                    try:
+                        valor = float(cell.value)
+                        conn.execute(text("INSERT INTO apropiacion_vigente (valor) VALUES (:valor)"), {"valor": valor})
+                        count += 1
+                    except (ValueError, TypeError):
+                        pass
+                fila += 1
+    os.remove(temp_path)
+    return {"message": f"Datos cargados: {count}"}
+
+@app.get("/apropiaciones/")
+def get_apropiaciones():
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT id, valor FROM apropiacion_vigente"))
+        data = result.fetchall()
+    return [{"id": row[0], "valor": float(row[1])} for row in data]
+
+@app.get("/apropiaciones/suma/")
+def get_suma_apropiaciones():
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT SUM(valor) FROM apropiacion_vigente"))
+        suma = result.scalar()
+    suma_float = float(suma) if suma else 0.0
+    suma_formateada = f"{suma_float:,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
+    return {"suma": suma_float, "suma_formateada": suma_formateada}
+ # Endpoint para sumar solo los valores en negrita de la columna 'APROPIACION VIGENTE' del archivo EJE
 from collections import Counter
 import os
 import re
@@ -1217,7 +1354,8 @@ def load_default_datasets_dataframes() -> tuple[pd.DataFrame, pd.DataFrame, pd.D
     ).copy()
 
     for col in ["Fecha_Registro", "Fecha_Creacion"]:
-        seguimiento_df[col] = seguimiento_df[col].astype(str)
+        if col in seguimiento_df.columns:
+            seguimiento_df[col] = seguimiento_df[col].astype(str)
 
     return cdp_df, crp_df, seguimiento_df
 
@@ -1968,12 +2106,56 @@ async def upload_excel_to_existing_table(
                 parsed_df = build_cdp_dataframe(df_raw)
                 prepared_df = build_dataframe_for_existing_table(parsed_df, target_columns)
             elif table_key == "eje":
-                from transformar_eje import build_eje_table
+                import tempfile
+                import openpyxl
+                import pandas as pd
 
-                raw_sheet_df = read_excel_sheet_raw(content_bytes, candidate_sheet)
-                eje_df = build_eje_table(raw_sheet_df)
-                parsed_df = build_eje_dataframe_for_db(eje_df)
-                prepared_df = build_dataframe_for_existing_table(parsed_df, target_columns)
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
+                    tmp.write(content_bytes)
+                    tmp_path = tmp.name
+
+                wb = openpyxl.load_workbook(tmp_path, data_only=True)
+                ws = wb[candidate_sheet] if candidate_sheet else wb.active
+
+                # Buscar encabezado y columna AP
+                header_row = None
+                ap_col_idx = None
+                ap_header_normalized = "APROPIACION VIGENTE DEP.GSTO."
+                for row in ws.iter_rows(min_row=1, max_row=30):
+                    for cell in row:
+                        if cell.value and isinstance(cell.value, str):
+                            normalized = str(cell.value).replace('\n', ' ').replace('\r', ' ').replace('  ', ' ').strip().upper()
+                            if ap_header_normalized in normalized.replace('  ', ' ').replace('.', '').replace('  ', ' '):
+                                header_row = cell.row
+                    if header_row:
+                        break
+                if not header_row:
+                    raise Exception("No se encontró la fila de encabezados para 'APROPIACION VIGENTE DEP.GSTO.'")
+
+                headers = []
+                for idx, cell in enumerate(ws[header_row]):
+                    if cell.value:
+                        normalized = str(cell.value).replace('\n', ' ').replace('\r', ' ').replace('  ', ' ').strip().upper()
+                        headers.append(normalized)
+                        if ap_header_normalized in normalized.replace('  ', ' ').replace('.', '').replace('  ', ' '):
+                            ap_col_idx = idx
+                    else:
+                        headers.append(None)
+                if ap_col_idx is None:
+                    raise Exception("No se encontró la columna 'APROPIACION VIGENTE DEP.GSTO.' en los encabezados")
+
+                data = []
+                for row in ws.iter_rows(min_row=header_row+1, max_row=ws.max_row):
+                    values = [cell.value for cell in row]
+                    cell_aprop = row[ap_col_idx]
+                    is_bold = int(getattr(getattr(cell_aprop, 'font', None), 'bold', False) is True)
+                    values.append(is_bold)
+                    data.append(values)
+
+                headers.append('is_bold_ap')
+                eje_df = pd.DataFrame(data, columns=headers)
+                prepared_df = build_dataframe_for_existing_table(eje_df, target_columns)
+                os.unlink(tmp_path)
             elif table_key == "seguimiento_presupuestal":
                 try:
                     prepared_df = build_seguimiento_merged_dataframe(

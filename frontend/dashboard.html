@@ -22,11 +22,12 @@
       <!-- Navigation -->
       <section class="panel" style="grid-column: span 12; position: relative;">
         <div class="logo-sena-container">
-          <img src="../images.png" alt="Logo SENA" class="logo-sena-img">
+          <img src="images.png" alt="Logo SENA" class="logo-sena-img">
         </div>
         <div class="nav-links">
           <a href="upload.html" class="nav-btn">📤 Cargar Datos</a>
           <a href="dashboard.html" class="nav-btn active">📊 Dashboard</a>
+          <button id="catalogNavBtn" class="nav-btn">📖 Catálogo</button>
         </div>
       </section>
 
@@ -37,7 +38,7 @@
             <h2>Selecciona la referencia del tablero</h2>
           </div>
         </div>
-        <div class="source-toggle-group" role="group" aria-label="Seleccion de fuente presupuestal">
+        <div class="source-toggle-group" role="group" aria-label="Selección de fuente presupuestal">
           <button type="button" class="source-toggle-btn is-active" data-source-toggle="all">Todo</button>
           <button type="button" class="source-toggle-btn" data-source-toggle="cdp">CDP</button>
           <button type="button" class="source-toggle-btn" data-source-toggle="crp">CRP</button>
@@ -48,7 +49,7 @@
       <!-- Key Metrics -->
       <section class="panel metric-card" data-metric-source="cdp">
         <div class="metric-content">
-          <div class="metric-label">Total CDP</div>
+          <div class="metric-label">📄 Total CDP</div>
           <div class="metric-value" id="metricCDP">0</div>
           <div class="metric-subtitle">Certificaciones</div>
         </div>
@@ -59,7 +60,7 @@
 
       <section class="panel metric-card" data-metric-source="crp">
         <div class="metric-content">
-          <div class="metric-label">Total CRP</div>
+          <div class="metric-label">📝 Total CRP</div>
           <div class="metric-value" id="metricCRP">0</div>
           <div class="metric-subtitle">Compromisos</div>
         </div>
@@ -70,7 +71,7 @@
 
       <section class="panel metric-card" data-metric-source="eje">
         <div class="metric-content">
-          <div class="metric-label">Total EJE</div>
+          <div class="metric-label">💸 Total EJE</div>
           <div class="metric-value" id="metricEJE">0</div>
           <div class="metric-subtitle">Ejecución</div>
         </div>
@@ -81,7 +82,7 @@
 
       <section class="panel metric-card" data-metric-source="crp">
         <div class="metric-content">
-          <div class="metric-label">Total Devengado</div>
+          <div class="metric-label">💰 Total Devengado</div>
           <div class="metric-value" id="metricDevengado">$0</div>
           <div class="metric-subtitle">Gasto Total</div>
         </div>
@@ -92,7 +93,7 @@
 
       <section class="panel metric-card" data-metric-source="cdp">
         <div class="metric-content">
-          <div class="metric-label">Presupuesto</div>
+          <div class="metric-label">🏦 Presupuesto</div>
           <div class="metric-value" id="metricBase">$0</div>
           <div class="metric-subtitle">Base Total</div>
         </div>
@@ -130,8 +131,8 @@
       <section class="panel panel-wide">
         <div class="panel-heading">
           <div>
-            <p class="panel-kicker">Ejecucion</p>
-            <h2>Ejecucion presupuestal</h2>
+            <p class="panel-kicker">Ejecución</p>
+            <h2>Ejecución presupuestal</h2>
           </div>
           <select id="chartTypeSelect" class="text-input" style="width: 200px; max-width: 100%;">
             <option value="pie">Gráfico Circular</option>
@@ -149,11 +150,30 @@
         <div class="panel-heading">
           <div>
             <p class="panel-kicker">Dependencias</p>
-            <h2>Ejecucion por Dependencia de Afectacion del Gasto</h2>
+            <h2>Ejecución por Dependencia de Afectación del Gasto</h2>
           </div>
         </div>
         <div style="position: relative; height: 300px;">
           <canvas id="trendChart"></canvas>
+        </div>
+      </section>
+
+      <section id="quarterAlertsPanel" class="panel panel-wide quarter-alert-panel">
+        <div class="panel-heading accordion-header collapsed" data-accordion="quarter-alerts">
+          <div>
+            <p class="panel-kicker">Alertas Trimestrales</p>
+            <h2>Semáforo de Ejecución (30%, 60%, 100%)</h2>
+          </div>
+          <button class="accordion-toggle" type="button" title="Expandir/Contraer">
+            <span class="accordion-icon">▼</span>
+          </button>
+        </div>
+        <div class="accordion-content hidden" id="quarter-alerts-content" data-accordion-content="quarter-alerts">
+          <p id="quarterOverallStatus" class="quarter-overall-status">Estado general: Sin datos</p>
+          <p id="quarterAlertsInfo" class="helper-text">Cargando semáforo trimestral...</p>
+          <div id="quarterAlertsGrid" class="quarter-alert-grid">
+            <div class="quarter-alert-card quarter-neutral">Sin datos trimestrales disponibles.</div>
+          </div>
         </div>
       </section>
 
@@ -173,8 +193,14 @@
         </div>
         
         <div class="accordion-content" id="summary-table-content" data-accordion-content="summary-table">
+          <div class="summary-view-tabs" role="tablist" aria-label="Vista de detalle por fuente">
+            <button type="button" class="source-toggle-btn is-active" data-summary-view="all">Todo</button>
+            <button type="button" class="source-toggle-btn" data-summary-view="cdp">CDP</button>
+            <button type="button" class="source-toggle-btn" data-summary-view="crp">CRP</button>
+            <button type="button" class="source-toggle-btn" data-summary-view="eje">EJE</button>
+          </div>
           <div class="table-filters">
-            <input id="summarySearchInput" class="text-input" type="text" placeholder="Buscar en tabla..." />
+            <input id="summarySearchInput" class="text-input" type="text" placeholder="Buscar por palabras clave..." />
             <select id="summaryFilterSelect" class="text-input">
               <option value="">Todos los registros</option>
               <option value="cdp">Solo CDP</option>
@@ -188,6 +214,18 @@
             <select id="dependencyFilterSelect" class="text-input">
               <option value="">Todas las dependencias</option>
             </select>
+            <select id="summarySiifFilterSelect" class="text-input">
+              <option value="">Todos los SIIF</option>
+            </select>
+            <select id="summaryCenterFilterSelect" class="text-input">
+              <option value="">Todos los Centros de Formación</option>
+            </select>
+            <select id="summaryCdpCodeFilterSelect" class="text-input">
+              <option value="">Todos los códigos de CDP</option>
+            </select>
+            <select id="summaryCdpRequestFilterSelect" class="text-input">
+              <option value="">Todas las solicitudes de CDP</option>
+            </select>
           </div>
           <p id="activeDashboardFilters" class="helper-text"></p>
 
@@ -195,16 +233,19 @@
             <table class="preview-table">
               <thead id="summaryHead">
                 <tr>
+                  <th>Fuente</th>
                   <th>Concepto</th>
                   <th>Vigencia</th>
-                  <th>Valor Base</th>
-                  <th>Valor CDP</th>
-                  <th>Valor CRP</th>
-                  <th>% Ejecución</th>
+                  <th>Dependencia</th>
+                  <th>SIIF</th>
+                  <th>Centro de Formación</th>
+                  <th>Código CDP</th>
+                  <th>Solicitud CDP</th>
+                  <th>Valor</th>
                 </tr>
               </thead>
               <tbody id="summaryBody">
-                <tr><td colspan="6" class="table-placeholder">Cargando datos...</td></tr>
+                <tr><td colspan="9" class="table-placeholder">Cargando datos...</td></tr>
               </tbody>
             </table>
           </div>
@@ -236,9 +277,26 @@
             <select id="ejeConceptFilterSelect" class="text-input">
               <option value="">Todos los conceptos</option>
             </select>
+            <select id="ejeSiifFilterSelect" class="text-input">
+              <option value="">Todos los SIIF</option>
+            </select>
+            <select id="ejeCenterFilterSelect" class="text-input">
+              <option value="">Todos los Centros de Formación</option>
+            </select>
+            <select id="ejeCdpCodeFilterSelect" class="text-input">
+              <option value="">Todos los códigos de CDP</option>
+            </select>
+            <select id="ejeCdpRequestFilterSelect" class="text-input">
+              <option value="">Todas las solicitudes de CDP</option>
+            </select>
+            <input id="ejeKeywordFilterInput" class="text-input" type="text" placeholder="Buscar por palabras clave (ej: mantenimiento, 2026, regional)" />
+            <button id="ejeClearFiltersBtn" class="secondary-btn" type="button">Limpiar filtros EJE</button>
           </div>
 
-          <p id="ejeGroupedSummaryInfo" class="helper-text">Cargando consolidado EJE...</p>
+          <div class="eje-status-row">
+            <p id="ejeGroupedSummaryInfo" class="helper-text">Cargando consolidado EJE...</p>
+            <span id="ejeActiveFiltersChip" class="eje-active-filters-chip">Filtros activos: 0</span>
+          </div>
 
           <div class="preview-wrap">
             <table class="preview-table">
@@ -250,10 +308,11 @@
                   <th>Concepto</th>
                   <th>Apropiación Vigente Dep. Gasto</th>
                   <th>CDP Dep. Gastos</th>
+                  <th>Solicitud CDP</th>
                 </tr>
               </thead>
               <tbody id="ejeGroupedBody">
-                <tr><td colspan="6" class="table-placeholder">Cargando datos EJE...</td></tr>
+                <tr><td colspan="7" class="table-placeholder">Cargando datos EJE...</td></tr>
               </tbody>
             </table>
           </div>
@@ -275,8 +334,71 @@
     <footer class="app-footer">
       <p>Servicio Nacional de Aprendizaje - SENA</p>
     </footer>
+
+    <!-- Catálogo/Guía de Conceptos Presupuestales - Vista -->
+    <div id="catalogView" class="catalog-view hidden">
+        <div class="catalog-view-header" style="display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 18px;">
+          <div style="display: flex; align-items: center; width: 100%; justify-content: space-between;">
+            <button id="catalogBackBtn" class="catalog-back-btn" type="button" aria-label="Volver al Dashboard">← Atrás</button>
+            <img src="images.png" alt="Logo SENA" class="logo-sena-img" style="width:48px;height:48px; margin: 0 0 0 0; display:block;" />
+            <span style="width:44px;"></span>
+          </div>
+          <h2 style="margin-top: 0;">📖 Catálogo</h2>
+          <p class="catalog-view-subtitle">Guía de Descripción de Rubros Presupuestales SENA 2025</p>
+          <a
+            id="catalogDownloadBtn"
+            class="catalog-download-btn"
+            href="GuiaDescripciondelosRubrosPresupuestalesSENA-2025_(1).docx.pdf"
+            download
+            target="_blank"
+            rel="noopener"
+            title="Descargar guía completa en PDF"
+          >
+            📥 Descargar PDF completo
+          </a>
+        </div>
+
+        <div class="catalog-view-toolbar">
+            <input 
+                type="text" 
+                id="catalogSearchInput" 
+                placeholder="🔍 Buscar concepto, definición..." 
+                class="catalog-search-input"
+            >
+        </div>
+
+        <div class="catalog-view-tabs">
+            <button class="catalog-tab-btn is-active" data-catalog-tab="all">
+                TodoS
+            </button>
+            <button class="catalog-tab-btn" data-catalog-tab="cdp">
+                CDP
+            </button>
+            <button class="catalog-tab-btn" data-catalog-tab="crp">
+                CRP
+            </button>
+            <button class="catalog-tab-btn" data-catalog-tab="eje">
+                EJE
+            </button>
+            <button class="catalog-tab-btn" data-catalog-tab="rubros">
+                Rubros
+            </button>
+            <button class="catalog-tab-btn" data-catalog-tab="glosario">
+                Glosario
+            </button>
+        </div>
+
+        <div id="catalogContent" class="catalog-content">
+            <!-- El contenido se genera dinámicamente desde JavaScript -->
+        </div>
+        <footer class="app-footer" style="margin-top:40px;">
+          <p>Servicio Nacional de Aprendizaje - SENA</p>
+        </footer>
+    </div>
+
   </div>
 
   <script src="dashboard.js?v=20260320-19"></script>
+  <script src="catalog.js"></script>
 </body>
 </html>

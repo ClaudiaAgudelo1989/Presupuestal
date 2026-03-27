@@ -156,10 +156,10 @@ async function checkHealth() {
   try {
     setHealthStatus('Verificando...', 'neutral');
     const data = await request('/health');
-    setHealthStatus(`Conexion activa: ${data.status}`, 'ok');
+    setHealthStatus(`Conexión activa: ${data.status}`, 'ok');
     writeLog('Health check', data);
   } catch (error) {
-    setHealthStatus('Sin conexion', 'error');
+    setHealthStatus('Sin conexión', 'error');
     writeLog('Health check', error.message);
   }
 }

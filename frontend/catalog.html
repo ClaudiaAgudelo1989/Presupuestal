@@ -1,0 +1,52 @@
+<!-- Catálogo/Guía de Conceptos Presupuestales -->
+<div id="catalogModal" class="catalog-modal">
+    <div class="catalog-container">
+        <div class="catalog-header">
+            <h2>📖 Catálogo de Conceptos</h2>
+            <button class="catalog-close-btn" id="catalogCloseBtn">&times;</button>
+        </div>
+
+        <div class="catalog-search">
+            <input 
+                type="text" 
+                id="catalogSearchInput" 
+                placeholder="🔍 Buscar concepto, definición..." 
+                class="catalog-search-input"
+            >
+        </div>
+
+        <div class="catalog-tabs">
+            <button class="catalog-tab-btn is-active" data-catalog-tab="all">
+                TodoS
+            </button>
+            <button class="catalog-tab-btn" data-catalog-tab="cdp">
+                CDP
+            </button>
+            <button class="catalog-tab-btn" data-catalog-tab="crp">
+                CRP
+            </button>
+            <button class="catalog-tab-btn" data-catalog-tab="eje">
+                EJE
+            </button>
+            <button class="catalog-tab-btn" data-catalog-tab="rubros">
+                Rubros
+            </button>
+            <button class="catalog-tab-btn" data-catalog-tab="glosario">
+                Glosario
+            </button>
+        </div>
+
+        <div id="catalogContent" class="catalog-content">
+            <!-- El contenido se genera dinámicamente desde JavaScript -->
+        </div>
+
+        <div class="catalog-footer">
+            <p class="catalog-source">📄 Fuente: Guía de Descripción de Rubros Presupuestales SENA 2025</p>
+        </div>
+    </div>
+</div>
+
+<!-- Botón flotante para abrir catálogo -->
+<button id="catalogToggleBtn" class="catalog-toggle-btn" title="Abrir Catálogo">
+    📖
+</button>
