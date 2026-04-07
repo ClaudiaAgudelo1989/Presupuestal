@@ -19,6 +19,23 @@
     </header>
 
     <main class="dashboard-grid">
+
+      <section class="panel" style="grid-column: span 12; background: #e0f7fa; margin-bottom: 0;">
+        <div id="fechaCorteContainer" style="display: flex; justify-content: center; gap: 32px; padding: 10px 0;">
+          <div style="font-size: 1.1rem; font-weight: 600; color: #00695c;">
+            Fecha de corte EJE: <span id="fechaCorteEJE">No especificada</span>
+          </div>
+          <div style="font-size: 1.1rem; font-weight: 600; color: #00695c;">
+            Fecha de corte CDP: <span id="fechaCorteCDP">No especificada</span>
+          </div>
+          <div style="font-size: 1.1rem; font-weight: 600; color: #00695c;">
+            Fecha de corte CRP: <span id="fechaCorteCRP">No especificada</span>
+          </div>
+          <div style="font-size: 1.1rem; font-weight: 600; color: #00695c;">
+            Fecha de corte Seguimiento: <span id="fechaCorteSEGUIMIENTO">No especificada</span>
+          </div>
+        </div>
+      </section>
       <!-- Navigation -->
       <section class="panel" style="grid-column: span 12; position: relative;">
         <div class="logo-sena-container">
@@ -27,7 +44,6 @@
         <div class="nav-links">
           <a href="upload.html" class="nav-btn">📤 Cargar Datos</a>
           <a href="dashboard.html" class="nav-btn active">📊 Dashboard</a>
-          <button id="catalogNavBtn" class="nav-btn">📖 Catálogo</button>
         </div>
       </section>
 
@@ -46,7 +62,19 @@
         </div>
       </section>
 
-      <!-- Key Metrics -->
+
+      <!-- Key Metrics (Nuevo orden: EJE, CDP, CRP) -->
+      <section class="panel metric-card" data-metric-source="eje">
+        <div class="metric-content">
+          <div class="metric-label">💸 Total EJE</div>
+          <div class="metric-value" id="metricEJE">0</div>
+          <div class="metric-subtitle">Ejecución</div>
+        </div>
+        <div class="metric-chart" style="width: 60px; height: 60px;">
+          <canvas id="chartEJE"></canvas>
+        </div>
+      </section>
+
       <section class="panel metric-card" data-metric-source="cdp">
         <div class="metric-content">
           <div class="metric-label">📄 Total CDP</div>
@@ -66,17 +94,6 @@
         </div>
         <div class="metric-chart" style="width: 60px; height: 60px;">
           <canvas id="chartCRP"></canvas>
-        </div>
-      </section>
-
-      <section class="panel metric-card" data-metric-source="eje">
-        <div class="metric-content">
-          <div class="metric-label">💸 Total EJE</div>
-          <div class="metric-value" id="metricEJE">0</div>
-          <div class="metric-subtitle">Ejecución</div>
-        </div>
-        <div class="metric-chart" style="width: 60px; height: 60px;">
-          <canvas id="chartEJE"></canvas>
         </div>
       </section>
 
@@ -106,7 +123,7 @@
         <div class="panel-heading">
           <div>
             <p class="panel-kicker">Resumen Ejecutivo</p>
-            <h2>Consolidado CDP, CRP y EJE</h2>
+            <h2>Consolidado EJE, CDP y CRP</h2>
           </div>
         </div>
         <div class="preview-wrap executive-summary-wrap">
@@ -121,7 +138,7 @@
               </tr>
             </thead>
             <tbody id="executiveSummaryBody">
-              <tr><td colspan="5" class="table-placeholder">Cargando resumen ejecutivo...</td></tr>
+              <!-- Las filas serán generadas dinámicamente por JavaScript en el orden correcto -->
             </tbody>
           </table>
         </div>
@@ -336,69 +353,10 @@
     </footer>
 
     <!-- Catálogo/Guía de Conceptos Presupuestales - Vista -->
-    <div id="catalogView" class="catalog-view hidden">
-        <div class="catalog-view-header" style="display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 18px;">
-          <div style="display: flex; align-items: center; width: 100%; justify-content: space-between;">
-            <button id="catalogBackBtn" class="catalog-back-btn" type="button" aria-label="Volver al Dashboard">← Atrás</button>
-            <img src="images.png" alt="Logo SENA" class="logo-sena-img" style="width:48px;height:48px; margin: 0 0 0 0; display:block;" />
-            <span style="width:44px;"></span>
-          </div>
-          <h2 style="margin-top: 0;">📖 Catálogo</h2>
-          <p class="catalog-view-subtitle">Guía de Descripción de Rubros Presupuestales SENA 2025</p>
-          <a
-            id="catalogDownloadBtn"
-            class="catalog-download-btn"
-            href="GuiaDescripciondelosRubrosPresupuestalesSENA-2025_(1).docx.pdf"
-            download
-            target="_blank"
-            rel="noopener"
-            title="Descargar guía completa en PDF"
-          >
-            📥 Descargar PDF completo
-          </a>
-        </div>
 
-        <div class="catalog-view-toolbar">
-            <input 
-                type="text" 
-                id="catalogSearchInput" 
-                placeholder="🔍 Buscar concepto, definición..." 
-                class="catalog-search-input"
-            >
-        </div>
-
-        <div class="catalog-view-tabs">
-            <button class="catalog-tab-btn is-active" data-catalog-tab="all">
-                TodoS
-            </button>
-            <button class="catalog-tab-btn" data-catalog-tab="cdp">
-                CDP
-            </button>
-            <button class="catalog-tab-btn" data-catalog-tab="crp">
-                CRP
-            </button>
-            <button class="catalog-tab-btn" data-catalog-tab="eje">
-                EJE
-            </button>
-            <button class="catalog-tab-btn" data-catalog-tab="rubros">
-                Rubros
-            </button>
-            <button class="catalog-tab-btn" data-catalog-tab="glosario">
-                Glosario
-            </button>
-        </div>
-
-        <div id="catalogContent" class="catalog-content">
-            <!-- El contenido se genera dinámicamente desde JavaScript -->
-        </div>
-        <footer class="app-footer" style="margin-top:40px;">
-          <p>Servicio Nacional de Aprendizaje - SENA</p>
-        </footer>
-    </div>
 
   </div>
 
   <script src="dashboard.js?v=20260320-19"></script>
-  <script src="catalog.js"></script>
 </body>
 </html>

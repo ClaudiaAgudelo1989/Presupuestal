@@ -1,9 +1,6 @@
 use database presupuesto; 
 
 
-
-
-
 CREATE TABLE `CRP` (
     `id` BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     `Numero Documento` VARCHAR(100) NULL,
@@ -36,8 +33,14 @@ CREATE TABLE `CRP` (
     `Cuentas por Pagar` DECIMAL(18,2) NULL,
     `Obligaciones` DECIMAL(18,2) NULL,
     `Ordenes de Pago` DECIMAL(18,2) NULL,
-    `Reintegros` DECIMAL(18,2) NULL
+    `Reintegros` DECIMAL(18,2) NULL,
+    `fecha_corte` DATE NULL
 );
+
+
+
+
+
 CREATE TABLE `CDP` (
     `id` BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     `Numero Documento` VARCHAR(100) NULL,
@@ -57,37 +60,39 @@ CREATE TABLE `CDP` (
     `Valor Actual` DECIMAL(18,2) NULL,
     `Saldo por Comprometer` DECIMAL(18,2) NULL,
     `Objeto` LONGTEXT NULL,
-    `Solicitud CDP` VARCHAR(100) NULL
+    `Solicitud CDP` VARCHAR(100) NULL,
+    `fecha_corte` DATE NULL
 );
 
 CREATE TABLE `eje` (
-   `id` int NOT NULL AUTO_INCREMENT,
-   `tipo` varchar(10) DEFAULT NULL,
-   `cta` varchar(10) DEFAULT NULL,
-   `subc` varchar(10) DEFAULT NULL,
-   `objg` varchar(10) DEFAULT NULL,
-   `ord` varchar(10) DEFAULT NULL,
-   `sord` varchar(10) DEFAULT NULL,
-   `item` varchar(10) DEFAULT NULL,
-   `sitem` varchar(10) DEFAULT NULL,
-   `concepto` varchar(255) DEFAULT NULL,
-   `fuente` varchar(100) DEFAULT NULL,
-   `situacion` varchar(50) DEFAULT NULL,
-   `rec` varchar(10) DEFAULT NULL,
-   `recurso` varchar(100) DEFAULT NULL,
-   `apropiacion_vigente_dep_gsto` decimal(20,2) DEFAULT NULL,
-   `is_bold_ap` TINYINT(1) DEFAULT 0, -- 1=negrita, 0=no
-   `total_cdp_dep_gstos` decimal(20,2) DEFAULT NULL,
-   `apropiacion_disponible_dep_gsto` decimal(20,2) DEFAULT NULL,
-   `total_cdp_modificacion_dep_gstos` decimal(20,2) DEFAULT NULL,
-   `total_compromiso_dep_gstos` decimal(20,2) DEFAULT NULL,
-   `cdp_por_comprometer_dep_gstos` decimal(20,2) DEFAULT NULL,
-   `total_obligaciones_dep_gstos` decimal(20,2) DEFAULT NULL,
-   `compromiso_por_obligar_dep_gstos` decimal(20,2) DEFAULT NULL,
-   `total_ordenes_pago_dep_gstos` decimal(20,2) DEFAULT NULL,
-   `obligaciones_por_ordenar_dep_gstos` decimal(20,2) DEFAULT NULL,
-   `pagos_dep_gstos` decimal(20,2) DEFAULT NULL,
-   `ordenes_pago_por_pagar_dep_gstos` decimal(20,2) DEFAULT NULL,
-   `total_reintegros_dep_gstos` decimal(20,2) DEFAULT NULL,
-   PRIMARY KEY (`id`)
+     `id` int NOT NULL AUTO_INCREMENT,
+     `tipo` varchar(10) DEFAULT NULL,
+     `cta` varchar(10) DEFAULT NULL,
+     `subc` varchar(10) DEFAULT NULL,
+     `objg` varchar(10) DEFAULT NULL,
+     `ord` varchar(10) DEFAULT NULL,
+     `sord` varchar(10) DEFAULT NULL,
+     `item` varchar(10) DEFAULT NULL,
+     `sitem` varchar(10) DEFAULT NULL,
+     `concepto` varchar(255) DEFAULT NULL,
+     `fuente` varchar(100) DEFAULT NULL,
+     `situacion` varchar(50) DEFAULT NULL,
+     `rec` varchar(10) DEFAULT NULL,
+     `recurso` varchar(100) DEFAULT NULL,
+     `apropiacion_vigente_dep_gsto` decimal(20,2) DEFAULT NULL,
+     `is_bold_ap` TINYINT(1) DEFAULT 0, -- 1=negrita, 0=no
+     `total_cdp_dep_gstos` decimal(20,2) DEFAULT NULL,
+     `apropiacion_disponible_dep_gsto` decimal(20,2) DEFAULT NULL,
+     `total_cdp_modificacion_dep_gstos` decimal(20,2) DEFAULT NULL,
+     `total_compromiso_dep_gstos` decimal(20,2) DEFAULT NULL,
+     `cdp_por_comprometer_dep_gstos` decimal(20,2) DEFAULT NULL,
+     `total_obligaciones_dep_gstos` decimal(20,2) DEFAULT NULL,
+     `compromiso_por_obligar_dep_gstos` decimal(20,2) DEFAULT NULL,
+     `total_ordenes_pago_dep_gstos` decimal(20,2) DEFAULT NULL,
+     `obligaciones_por_ordenar_dep_gstos` decimal(20,2) DEFAULT NULL,
+     `pagos_dep_gstos` decimal(20,2) DEFAULT NULL,
+     `ordenes_pago_por_pagar_dep_gstos` decimal(20,2) DEFAULT NULL,
+     `total_reintegros_dep_gstos` decimal(20,2) DEFAULT NULL,
+     `fecha_corte` DATE NULL,
+     PRIMARY KEY (`id`)
  ) ENGINE=InnoDB AUTO_INCREMENT=245 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci

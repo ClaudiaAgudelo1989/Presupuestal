@@ -272,14 +272,21 @@ async function handleUploadExcel(event) {
 
   const file = elements.excelFile.files[0];
   const tableName = elements.uploadTableSelect.value;
+  const fechaCorteInput = document.getElementById('fechaCorte');
+  const fechaCorte = fechaCorteInput && fechaCorteInput.value ? fechaCorteInput.value : null;
   if (!file || !tableName) {
     writeLog('Subir Excel', 'Debes seleccionar una tabla y un archivo.');
+    return;
+  }
+  if (!fechaCorte) {
+    writeLog('Subir Excel', 'Debes seleccionar la fecha de corte.');
     return;
   }
 
   const formData = new FormData();
   formData.append('file', file);
   formData.append('table_name', tableName);
+  formData.append('fecha_corte', fechaCorte);
   if (elements.sheetName.value.trim()) {
     formData.append('sheet', elements.sheetName.value.trim());
   }

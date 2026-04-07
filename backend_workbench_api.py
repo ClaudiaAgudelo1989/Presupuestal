@@ -140,12 +140,12 @@ def get_suma_apropiaciones():
 from collections import Counter
 import os
 import re
+import pandas as pd
 from io import BytesIO
 from pathlib import Path
 from typing import Any
 import unicodedata
 
-import pandas as pd
 import pymysql
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -2053,8 +2053,10 @@ async def upload_excel_to_mysql(
 
 @app.post("/api/excel/upload-to-table")
 async def upload_excel_to_existing_table(
+    
     file: UploadFile = File(...),
     table_name: str = Form(...),
+    fecha_corte: str = Form(...),
     sheet: str | None = Form(default=None),
     host: str = Form(default=DEFAULT_CONNECTION["host"]),
     port: int = Form(default=DEFAULT_CONNECTION["port"]),
@@ -2062,6 +2064,10 @@ async def upload_excel_to_existing_table(
     password: str = Form(default=DEFAULT_CONNECTION["password"]),
     database: str = Form(default=DEFAULT_CONNECTION["database"] or "presupuesto"),
 ) -> dict[str, Any]:
+    import tempfile, openpyxl, os
+    from datetime import datetime
+    import re
+
     if not file.filename.lower().endswith((".xlsx", ".xlsm", ".xls")):
         raise HTTPException(status_code=400, detail="Solo se permiten archivos Excel (.xlsx, .xlsm, .xls)")
 
@@ -2070,11 +2076,22 @@ async def upload_excel_to_existing_table(
     sheets = read_excel_bytes(content_bytes)
 
     payload = get_form_connection_payload(host, port, user, password, database)
-    insertable = get_insertable_columns_with_types(payload, safe_table_name)
-    max_lengths = get_insertable_column_max_lengths(payload, safe_table_name)
-    target_columns = [name for name, _ in insertable]
-    target_types = {name: data_type for name, data_type in insertable}
 
+    try:
+        columns_in_db = get_insertable_columns_with_types(payload, safe_table_name)
+        column_names = [name for name, _ in columns_in_db]
+        if 'fecha_corte' not in column_names:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Error: la tabla '{safe_table_name}' no tiene la columna 'fecha_corte'. Columnas: {column_names}"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error verificando estructura de tabla: {str(e)}")
+
+    insertable = columns_in_db
+    target_columns = [name for name, _ in insertable]
     table_key = safe_table_name.lower()
 
     if sheet and sheet not in sheets:
@@ -2088,17 +2105,11 @@ async def upload_excel_to_existing_table(
     for candidate_sheet in candidate_sheets:
         df_raw = sheets[candidate_sheet].copy()
         if df_raw.empty:
-            attempt_details.append(
-                {
-                    "hoja": candidate_sheet,
-                    "error": "La hoja no tiene datos.",
-                }
-            )
+            attempt_details.append({"hoja": candidate_sheet, "error": "La hoja no tiene datos."})
             continue
 
         strategy_errors: list[str] = []
         try:
-            # Estrategia 1: parseo especializado para formatos SIA (CRP/CDP y seguimiento desde CDP).
             if table_key == "crp":
                 parsed_df = build_crp_dataframe(df_raw)
                 prepared_df = build_dataframe_for_existing_table(parsed_df, target_columns)
@@ -2106,10 +2117,6 @@ async def upload_excel_to_existing_table(
                 parsed_df = build_cdp_dataframe(df_raw)
                 prepared_df = build_dataframe_for_existing_table(parsed_df, target_columns)
             elif table_key == "eje":
-                import tempfile
-                import openpyxl
-                import pandas as pd
-
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
                     tmp.write(content_bytes)
                     tmp_path = tmp.name
@@ -2117,15 +2124,14 @@ async def upload_excel_to_existing_table(
                 wb = openpyxl.load_workbook(tmp_path, data_only=True)
                 ws = wb[candidate_sheet] if candidate_sheet else wb.active
 
-                # Buscar encabezado y columna AP
                 header_row = None
                 ap_col_idx = None
                 ap_header_normalized = "APROPIACION VIGENTE DEP.GSTO."
                 for row in ws.iter_rows(min_row=1, max_row=30):
                     for cell in row:
                         if cell.value and isinstance(cell.value, str):
-                            normalized = str(cell.value).replace('\n', ' ').replace('\r', ' ').replace('  ', ' ').strip().upper()
-                            if ap_header_normalized in normalized.replace('  ', ' ').replace('.', '').replace('  ', ' '):
+                            normalized = str(cell.value).replace('\n', ' ').replace('\r', ' ').strip().upper()
+                            if ap_header_normalized in normalized.replace('.', ''):
                                 header_row = cell.row
                     if header_row:
                         break
@@ -2134,21 +2140,17 @@ async def upload_excel_to_existing_table(
 
                 headers = []
                 for idx, cell in enumerate(ws[header_row]):
-                    if cell.value:
-                        normalized = str(cell.value).replace('\n', ' ').replace('\r', ' ').replace('  ', ' ').strip().upper()
-                        headers.append(normalized)
-                        if ap_header_normalized in normalized.replace('  ', ' ').replace('.', '').replace('  ', ' '):
-                            ap_col_idx = idx
-                    else:
-                        headers.append(None)
+                    normalized = str(cell.value).replace('\n', ' ').replace('\r', ' ').strip().upper() if cell.value else None
+                    headers.append(normalized)
+                    if ap_header_normalized in (normalized or "").replace('.', ''):
+                        ap_col_idx = idx
                 if ap_col_idx is None:
                     raise Exception("No se encontró la columna 'APROPIACION VIGENTE DEP.GSTO.' en los encabezados")
 
                 data = []
-                for row in ws.iter_rows(min_row=header_row+1, max_row=ws.max_row):
+                for row in ws.iter_rows(min_row=header_row + 1, max_row=ws.max_row):
                     values = [cell.value for cell in row]
-                    cell_aprop = row[ap_col_idx]
-                    is_bold = int(getattr(getattr(cell_aprop, 'font', None), 'bold', False) is True)
+                    is_bold = int(getattr(getattr(row[ap_col_idx], 'font', None), 'bold', False) is True)
                     values.append(is_bold)
                     data.append(values)
 
@@ -2157,185 +2159,67 @@ async def upload_excel_to_existing_table(
                 prepared_df = build_dataframe_for_existing_table(eje_df, target_columns)
                 os.unlink(tmp_path)
             elif table_key == "seguimiento_presupuestal":
-                try:
-                    prepared_df = build_seguimiento_merged_dataframe(
-                        content_bytes=content_bytes,
-                        sheet_name=candidate_sheet,
-                        df_raw_default=df_raw,
-                        target_columns=target_columns,
-                    )
-                except Exception:
-                    try:
-                        raw_sheet_df = read_excel_sheet_raw(content_bytes, candidate_sheet)
-                        parsed_df = build_seguimiento_from_horizontal_row17(raw_sheet_df)
-                    except Exception:
-                        parsed_df = build_seguimiento_dataframe(df_raw)
-                    prepared_df = build_dataframe_for_existing_table(parsed_df, target_columns)
+                prepared_df = build_seguimiento_merged_dataframe(
+                    content_bytes=content_bytes,
+                    sheet_name=candidate_sheet,
+                    df_raw_default=df_raw,
+                    target_columns=target_columns,
+                )
             else:
                 raise ValueError("tabla sin parseo especializado")
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             strategy_errors.append(f"especializado: {exc}")
             try:
-                # Estrategia 2: mapeo genérico por encabezados directos del Excel.
                 prepared_df = build_dataframe_for_existing_table(df_raw, target_columns)
-            except Exception as fallback_exc:  # noqa: BLE001
+            except Exception as fallback_exc:
                 strategy_errors.append(f"generico: {fallback_exc}")
                 try:
-                    # Estrategia 3: detectar fila real de encabezados cuando el Excel trae titulos arriba.
                     prepared_df = build_dataframe_from_detected_header_row(df_raw, target_columns)
-                except Exception as detected_exc:  # noqa: BLE001
+                except Exception as detected_exc:
                     strategy_errors.append(f"detectado: {detected_exc}")
-                    if table_key == "seguimiento_presupuestal":
-                        try:
-                            # Estrategia 4: transformar reporte EJE a esquema seguimiento.
-                            from transformar_eje import build_eje_table
-
-                            raw_sheet_df = read_excel_sheet_raw(content_bytes, candidate_sheet)
-                            eje_df = build_eje_table(raw_sheet_df)
-                            seguimiento_df = build_seguimiento_from_eje_table(eje_df)
-                            prepared_df = build_dataframe_for_existing_table(seguimiento_df, target_columns)
-                        except Exception as eje_exc:  # noqa: BLE001
-                            strategy_errors.append(f"eje_transform: {eje_exc}")
-                            attempt_details.append(
-                                {
-                                    "hoja": candidate_sheet,
-                                    "errores": strategy_errors,
-                                }
-                            )
-                            continue
-                    else:
-                        attempt_details.append(
-                            {
-                                "hoja": candidate_sheet,
-                                "errores": strategy_errors,
-                            }
-                        )
-                        continue
+                    attempt_details.append({"hoja": candidate_sheet, "errores": strategy_errors})
+                    continue
 
         selected_sheet = candidate_sheet
         df = prepared_df
         break
 
-    if df is None or selected_sheet is None:
+    if df is None or df.empty:
+        raise HTTPException(status_code=400, detail="No se encontraron datos válidos para cargar en la tabla.")
+
+    if 'fecha_corte' not in df.columns:
         raise HTTPException(
             status_code=400,
-            detail={
-                "mensaje": f"No se pudo preparar el Excel para la tabla {safe_table_name}.",
-                "intentos": attempt_details,
-                "sugerencia": "Selecciona manualmente la hoja correcta en el formulario.",
-            },
+            detail=f"Error: columna 'fecha_corte' no está en el DataFrame. Columnas disponibles: {list(df.columns)}"
         )
 
-    raw_sheet_df = sheets[selected_sheet]
-    raw_rows_total = int(len(raw_sheet_df))
-    raw_rows_non_empty = int(raw_sheet_df.dropna(how="all").shape[0])
-    raw_columns_total = int(len(raw_sheet_df.columns))
+    fecha_corte_str = fecha_corte.strip()
+    if re.match(r"^\d{1,2}/\d{1,2}/\d{4}$", fecha_corte_str):
+        try:
+            fecha_corte_dt = datetime.strptime(fecha_corte_str, "%d/%m/%Y")
+        except Exception:
+            fecha_corte_dt = pd.to_datetime(fecha_corte_str, errors="coerce", dayfirst=True)
+    else:
+        fecha_corte_dt = pd.to_datetime(fecha_corte_str, errors="coerce")
 
-    df = coerce_dataframe_to_table_types(df, target_types, max_lengths)
-    if table_key == "cdp":
-        df = ensure_non_null_date_fields(df, ["Fecha de Registro", "Fecha de Creacion"])
-    elif table_key == "crp":
-        df = ensure_non_null_date_fields(df, ["Fecha de Registro", "Fecha de Creacion"])
-    elif table_key == "seguimiento_presupuestal":
-        df = ensure_non_null_date_fields(df, ["Fecha_Registro", "Fecha_Creacion"], stringify=True)
-    prepared_rows = int(len(df))
+    df['fecha_corte'] = pd.Series([fecha_corte_dt] * len(df), index=df.index)
 
-    mapping_info = {
-        "encabezados_excel_detectados": [str(c) for c in sheets[selected_sheet].columns],
-        "columnas_coincidentes": df.attrs.get("matched_columns", []),
-        "columnas_faltantes_rellenadas_null": df.attrs.get("missing_columns", []),
-        "columnas_excel_ignoradas": df.attrs.get("extra_columns", []),
-    }
-
-    insertion_report = insert_dataframe_with_row_report(payload, safe_table_name, df)
-
-    matched_count = len(mapping_info["columnas_coincidentes"])
-    expected_count = len(target_columns)
-    coverage_percent = round((matched_count / expected_count) * 100, 2) if expected_count else 0.0
-
-    cdp_validation: dict[str, Any] | None = None
-    if table_key == "cdp":
-        expected_cdp_excel_columns = 156
-        expected_cdp_norm = set(normalize_columns(CDP_REQUIRED_HEADERS))
-        matched_cdp_norm = set(mapping_info["columnas_coincidentes"])
-        missing_cdp_norm = sorted(expected_cdp_norm - matched_cdp_norm)
-
-        cdp_validation = {
-            "columnas_totales_excel_esperadas": expected_cdp_excel_columns,
-            "columnas_totales_excel_detectadas": raw_columns_total,
-            "columnas_totales_excel_completas": raw_columns_total == expected_cdp_excel_columns,
-            "encabezados_requeridos": len(CDP_REQUIRED_HEADERS),
-            "encabezados_requeridos_detectados": len(expected_cdp_norm.intersection(matched_cdp_norm)),
-            "encabezados_requeridos_faltantes": missing_cdp_norm,
-            "encabezados_requeridos_completos": len(missing_cdp_norm) == 0,
-        }
+    engine = create_engine(build_sqlalchemy_url(payload), pool_pre_ping=True)
+    try:
+        df.to_sql(name=safe_table_name, con=engine, if_exists="append", index=False, chunksize=1000)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Error guardando datos en {safe_table_name}: {exc}") from exc
 
     return {
         "ok": True,
         "archivo": file.filename,
-        "hoja": selected_sheet,
-        "database": database,
         "tabla": safe_table_name,
-        "filas_excel_totales_hoja": raw_rows_total,
-        "filas_excel_no_vacias": raw_rows_non_empty,
-        "filas_preparadas_para_insert": prepared_rows,
-        "filas_exitosas": insertion_report["filas_insertadas"],
-        "filas_fallidas": insertion_report["filas_fallidas"],
-        "filas_intentadas": insertion_report["filas_intentadas"],
-        "filas_descartadas_durante_preparacion": max(0, raw_rows_non_empty - prepared_rows),
-        "filas_cargadas": insertion_report["filas_insertadas"],
-        "columnas": target_columns,
-        "mapeo": mapping_info,
-        "validacion_integridad": {
-            "columnas_excel_totales_hoja": raw_columns_total,
-            "columnas_tabla_objetivo": expected_count,
-            "columnas_coincidentes": matched_count,
-            "cobertura_columnas_porcentaje": coverage_percent,
-            "cruce_columnas_completo": matched_count == expected_count,
-            "registro_completo": insertion_report["filas_fallidas"] == 0,
-        },
-        "validacion_cdp": cdp_validation,
-        "errores_muestra": insertion_report["errores_muestra"],
+        "hoja": selected_sheet,
+        "filas_cargadas": int(len(df)),
+        "database": database,
+        "debug_columnas": list(df.columns),
+        "debug_fecha_corte_sample": df['fecha_corte'].head().tolist(),
     }
-
-
-@app.get("/api/excel/cdp/headers")
-def cdp_headers() -> dict[str, Any]:
-    return {
-        "ok": True,
-        "tabla": "CDP",
-        "database": "base_cdp",
-        "headers": CDP_REQUIRED_HEADERS,
-    }
-
-
-@app.post("/api/excel/cdp/validate")
-async def validate_cdp_excel(
-    file: UploadFile = File(...),
-    sheet: str | None = Form(default=None),
-) -> dict[str, Any]:
-    if not file.filename.lower().endswith((".xlsx", ".xlsm", ".xls")):
-        raise HTTPException(status_code=400, detail="Solo se permiten archivos Excel (.xlsx, .xlsm, .xls)")
-
-    content_bytes = await file.read()
-    sheets = read_excel_bytes(content_bytes)
-
-    target_sheet = sheet or next(iter(sheets.keys()), None)
-    if not target_sheet or target_sheet not in sheets:
-        raise HTTPException(status_code=400, detail="La hoja indicada no existe en el archivo Excel.")
-
-    df_raw = sheets[target_sheet].copy()
-    cdp_df = build_cdp_dataframe(df_raw)
-
-    return {
-        "ok": True,
-        "archivo": file.filename,
-        "hoja": target_sheet,
-        "filas_validas": int(len(cdp_df)),
-        "columnas_detectadas": CDP_REQUIRED_HEADERS,
-        "preview": cdp_df.head(20).where(pd.notna(cdp_df), None).to_dict(orient="records"),
-    }
-
 
 @app.post("/api/excel/cdp/upload")
 async def upload_cdp_excel(
@@ -2348,6 +2232,7 @@ async def upload_cdp_excel(
     password: str = Form(default=DEFAULT_CONNECTION["password"]),
     database: str = Form(default=DEFAULT_CONNECTION["database"] or "presupuesto"),
     table: str = Form(default="CDP"),
+    fecha_corte: str = Form(...),
 ) -> dict[str, Any]:
     if if_exists not in {"append", "replace"}:
         raise HTTPException(status_code=400, detail="if_exists solo permite: append o replace")
@@ -2362,10 +2247,28 @@ async def upload_cdp_excel(
     if not target_sheet or target_sheet not in sheets:
         raise HTTPException(status_code=400, detail="La hoja indicada no existe en el archivo Excel.")
 
+
     df_raw = sheets[target_sheet].copy()
     cdp_df = build_cdp_dataframe(df_raw)
     if cdp_df.empty:
         raise HTTPException(status_code=400, detail="No hay filas validas para cargar en CDP.")
+
+    # --- AGREGAR FECHA DE CORTE A TODOS LOS REGISTROS (convertir formato si es necesario) ---
+    import re
+    from datetime import datetime
+    if 'fecha_corte' in cdp_df.columns:
+        cdp_df = cdp_df.drop(columns=['fecha_corte'])
+    fecha_corte_str = fecha_corte.strip()
+    # Convertir a datetime si es necesario
+    if re.match(r"^\d{1,2}/\d{1,2}/\d{4}$", fecha_corte_str):
+        try:
+            fecha_corte_dt = datetime.strptime(fecha_corte_str, "%d/%m/%Y")
+        except Exception:
+            fecha_corte_dt = pd.to_datetime(fecha_corte_str, errors="coerce", dayfirst=True)
+    else:
+        # Intentar convertir cualquier otro formato a datetime
+        fecha_corte_dt = pd.to_datetime(fecha_corte_str, errors="coerce")
+    cdp_df['fecha_corte'] = pd.Series([fecha_corte_dt] * len(cdp_df), index=cdp_df.index)
 
     payload = get_form_connection_payload(host, port, user, password, database)
     engine = create_engine(build_sqlalchemy_url(payload), pool_pre_ping=True)
@@ -2436,6 +2339,7 @@ async def upload_crp_excel(
     password: str = Form(default=DEFAULT_CONNECTION["password"]),
     database: str = Form(default=DEFAULT_CONNECTION["database"] or "presupuesto"),
     table: str = Form(default="CRP"),
+    fecha_corte: str = Form(...),
 ) -> dict[str, Any]:
     if if_exists not in {"append", "replace"}:
         raise HTTPException(status_code=400, detail="if_exists solo permite: append o replace")
@@ -2454,6 +2358,23 @@ async def upload_crp_excel(
     crp_df = build_crp_dataframe(df_raw)
     if crp_df.empty:
         raise HTTPException(status_code=400, detail="No hay filas validas para cargar en CRP.")
+
+    # --- AGREGAR FECHA DE CORTE A TODOS LOS REGISTROS (convertir formato si es necesario) ---
+    import re
+    from datetime import datetime
+    if 'fecha_corte' in crp_df.columns:
+        crp_df = crp_df.drop(columns=['fecha_corte'])
+    fecha_corte_str = fecha_corte.strip()
+    # Convertir a datetime si es necesario
+    if re.match(r"^\d{1,2}/\d{1,2}/\d{4}$", fecha_corte_str):
+        try:
+            fecha_corte_dt = datetime.strptime(fecha_corte_str, "%d/%m/%Y")
+        except Exception:
+            fecha_corte_dt = pd.to_datetime(fecha_corte_str, errors="coerce", dayfirst=True)
+    else:
+        # Intentar convertir cualquier otro formato a datetime
+        fecha_corte_dt = pd.to_datetime(fecha_corte_str, errors="coerce")
+    crp_df['fecha_corte'] = pd.Series([fecha_corte_dt] * len(crp_df), index=crp_df.index)
 
     payload = get_form_connection_payload(host, port, user, password, database)
     engine = create_engine(build_sqlalchemy_url(payload), pool_pre_ping=True)
@@ -2555,7 +2476,6 @@ async def truncate_and_load_table(
     try:
         with engine.begin() as conn:
             conn.exec_driver_sql(f"TRUNCATE TABLE `{safe_table_name}`")
-        
         df.to_sql(name=safe_table_name, con=engine, if_exists="append", index=False, chunksize=1000)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=400, detail=f"Error truncando y cargando tabla {safe_table_name}: {exc}") from exc

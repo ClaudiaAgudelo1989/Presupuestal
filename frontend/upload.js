@@ -6,15 +6,24 @@ const uploadEjeAvanzadoResult = document.getElementById('uploadEjeAvanzadoResult
 if (uploadEjeAvanzadoForm) {
   uploadEjeAvanzadoForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const fechaCorteInput = document.getElementById('fechaCorte');
+    const fechaCorte = fechaCorteInput && fechaCorteInput.value ? fechaCorteInput.value : null;
     if (!excelEjeAvanzadoFile.files.length) {
       uploadEjeAvanzadoResult.classList.remove('ok', 'error', 'hidden');
       uploadEjeAvanzadoResult.classList.add('error');
       uploadEjeAvanzadoResult.textContent = 'Selecciona un archivo .xlsx';
       return;
     }
+    if (!fechaCorte) {
+      uploadEjeAvanzadoResult.classList.remove('ok', 'error', 'hidden');
+      uploadEjeAvanzadoResult.classList.add('error');
+      uploadEjeAvanzadoResult.textContent = 'Debes seleccionar la fecha de corte.';
+      return;
+    }
     const formData = new FormData();
     formData.append('file', excelEjeAvanzadoFile.files[0]);
     formData.append('table_name', 'eje');
+    formData.append('fecha_corte', fechaCorte);
     uploadEjeAvanzadoResult.classList.remove('ok', 'error', 'hidden');
     uploadEjeAvanzadoResult.classList.add('neutral');
     uploadEjeAvanzadoResult.textContent = 'Subiendo archivo...';
@@ -84,6 +93,34 @@ const elements = {
 };
 
 function setUploadResult(message, variant = 'neutral') {
+  // Guardar fecha de corte en localStorage al subir archivo
+
+// Guardar fecha de corte en localStorage justo antes de enviar el formulario
+if (elements.uploadForm) {
+  elements.uploadForm.addEventListener('submit', async function (e) {
+    const fechaCorteInput = document.getElementById('fechaCorte');
+    const tablaSelect = document.getElementById('uploadTableSelect');
+    const tabla = tablaSelect ? tablaSelect.value : '';
+    const fechaCorte = fechaCorteInput && fechaCorteInput.value ? fechaCorteInput.value : null;
+    if (fechaCorte) {
+      localStorage.setItem('fechaCorteArchivo', fechaCorte);
+      // Enviar fecha de corte al backend
+      try {
+        await fetch(`${getApiBase()}/api/metadata/fecha-corte`, {
+          method: 'POST',
+          body: new URLSearchParams({
+            tabla,
+            fecha_corte: fechaCorte
+          })
+        });
+      } catch (err) {
+        // No bloquear la carga si falla el metadato
+      }
+    } else {
+      localStorage.removeItem('fechaCorteArchivo');
+    }
+  });
+}
   if (!elements.uploadResult) {
     return;
   }
@@ -371,14 +408,23 @@ async function handleUploadExcel(event) {
 
   const file = elements.excelFile.files[0];
   const tableName = elements.uploadTableSelect.value;
+  const fechaCorteInput = document.getElementById('fechaCorte');
+  const fechaCorte = fechaCorteInput && fechaCorteInput.value ? fechaCorteInput.value : null;
   if (!file || !tableName) {
     writeLog('Subir Excel', 'Debes seleccionar una tabla y un archivo.');
+    return;
+  }
+  if (!fechaCorte) {
+    writeLog('Subir Excel', 'Debes ingresar la fecha de corte.');
+    setUploadResult('Debes ingresar la fecha de corte.', 'error');
+    window.alert('Debes ingresar la fecha de corte.');
     return;
   }
 
   const formData = new FormData();
   formData.append('file', file);
   formData.append('table_name', tableName);
+  formData.append('fecha_corte', fechaCorte);
   if (elements.sheetName.value.trim()) {
     formData.append('sheet', elements.sheetName.value.trim());
   }
